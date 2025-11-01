@@ -1,0 +1,179 @@
+ClaudeChat - Android приложение с Jetpack Compose
+================================================
+
+📱 ОСНОВНЫЕ КОМПОНЕНТЫ
+==================
+
+MainActivity.kt
+  └─ ComponentActivity с Compose
+  └─ Инициализирует тему и ChatScreen
+
+ChatScreen.kt [ГЛАВНЫЙ ЭКРАН]
+  ├─ Scaffold (каркас)
+  ├─ TopAppBar (заголовок + кнопка очистки)
+  ├─ LazyColumn (список сообщений)
+  ├─ CircularProgressIndicator (загрузка)
+  └─ TextField + FAB (ввод + отправка)
+
+MessageBubble.kt [КОМПОНЕНТ СООБЩЕНИЯ]
+  ├─ Box (контейнер с выравниванием)
+  └─ Box (пузырек с закругленными углами)
+      └─ Text (текст сообщения)
+
+🎨 ТЕМА И СТИЛИ
+==============
+
+Color.kt
+  ├─ Purple80, Purple40, PurpleGrey40, Pink40
+  ├─ UserMessageBackground (#1976D2 - синий)
+  └─ AssistantMessageBackground (#FFFFFF - белый)
+
+Theme.kt
+  ├─ ClaudeChatTheme
+  ├─ LightColorScheme
+  ├─ DarkColorScheme
+  └─ MaterialTheme wrapper
+
+Type.kt
+  └─ Typography (размеры шрифтов)
+
+🔧 АРХИТЕКТУРА (MVVM)
+===================
+
+ChatViewModel
+  ├─ LiveData<List<Message>> messages
+  ├─ LiveData<Boolean> isLoading
+  ├─ LiveData<String?> error
+  ├─ fun sendMessage(text)
+  └─ fun clearChat()
+
+ChatRepository
+  ├─ ClaudeApiClient
+  ├─ conversationHistory
+  ├─ suspend fun sendMessage()
+  └─ fun clearHistory()
+
+🌐 API СЛОЙ
+===========
+
+ClaudeApiClient
+  ├─ BASE_URL = "https://api.anthropic.com/"
+  ├─ API_KEY (НУЖНО ЗАМЕНИТЬ!)
+  ├─ OkHttpClient с interceptors
+  └─ Retrofit instance
+
+ClaudeApiService (Interface)
+  └─ suspend fun sendMessage(@Body request): ClaudeResponse
+
+ClaudeModels
+  ├─ ClaudeRequest (model, max_tokens, messages)
+  ├─ ClaudeMessage (role, content)
+  ├─ ClaudeResponse (id, content, model)
+  └─ ContentBlock (type, text)
+
+📊 МОДЕЛИ ДАННЫХ
+===============
+
+Message
+  ├─ text: String
+  ├─ isUser: Boolean
+  └─ timestamp: Long
+
+📁 СТРУКТУРА ФАЙЛОВ
+==================
+
+app/src/main/java/com/example/claudechat/
+│
+├── MainActivity.kt                          [Entry Point]
+│
+├── api/
+│   ├── ClaudeApiClient.kt                  [Retrofit Setup]
+│   ├── ClaudeApiService.kt                 [API Interface]
+│   └── ClaudeModels.kt                     [Request/Response Models]
+│
+├── model/
+│   └── Message.kt                           [Domain Model]
+│
+├── repository/
+│   └── ChatRepository.kt                    [Data Layer]
+│
+├── viewmodel/
+│   └── ChatViewModel.kt                     [Business Logic]
+│
+└── ui/
+    ├── components/
+    │   ├── MessageBubble.kt                [Message UI Component]
+    │   └── MessageBubblePreview.kt         [Preview Annotations]
+    │
+    ├── screens/
+    │   └── ChatScreen.kt                    [Main Screen Composable]
+    │
+    └── theme/
+        ├── Color.kt                         [Color Palette]
+        ├── Theme.kt                         [App Theme]
+        └── Type.kt                          [Typography]
+
+📝 КОНФИГУРАЦИЯ
+=============
+
+build.gradle.kts (app)
+  ├─ Compose enabled
+  ├─ Compose BOM 2024.01.00
+  ├─ Material 3
+  ├─ Retrofit 2.9.0
+  └─ Coroutines 1.7.3
+
+AndroidManifest.xml
+  ├─ INTERNET permission
+  ├─ ACCESS_NETWORK_STATE permission
+  └─ MainActivity (launcher)
+
+🔄 ПОТОК ДАННЫХ
+==============
+
+User Input (ChatScreen)
+  ↓
+ChatViewModel.sendMessage()
+  ↓
+ChatRepository.sendMessage()
+  ↓
+ClaudeApiService.sendMessage()
+  ↓
+Retrofit → API Request
+  ↓
+Claude API Response
+  ↓
+ChatRepository → ViewModel
+  ↓
+LiveData Update
+  ↓
+ChatScreen Recomposition
+  ↓
+UI Update (new message)
+
+🎯 КЛЮЧЕВЫЕ ОСОБЕННОСТИ COMPOSE
+==============================
+
+✅ Декларативный UI
+✅ Реактивность (State → UI)
+✅ Меньше boilerplate кода
+✅ Preview в реальном времени
+✅ Автоматическая оптимизация
+✅ Единый язык (только Kotlin)
+
+🚀 БЫСТРЫЙ СТАРТ
+===============
+
+1. Откройте проект в Android Studio
+2. Замените API_KEY в ClaudeApiClient.kt
+3. Запустите приложение
+4. Наслаждайтесь общением с Claude!
+
+📚 ДОКУМЕНТАЦИЯ
+==============
+
+README.md         - Полное описание проекта
+QUICKSTART.md     - Быстрый старт
+COMPOSE_GUIDE.md  - Руководство по Compose
+MIGRATION.md      - Миграция с XML на Compose
+EXAMPLES.md       - Примеры расширения
