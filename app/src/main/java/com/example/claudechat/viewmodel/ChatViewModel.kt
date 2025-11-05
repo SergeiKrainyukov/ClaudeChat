@@ -34,8 +34,12 @@ class ChatViewModel : ViewModel() {
         viewModelScope.launch {
             repository.sendMessage(text)
                 .onSuccess { response ->
-                    // Добавляем ответ Claude
-                    val assistantMessage = Message(text = response, isUser = false)
+                    // Добавляем ответ Claude с confidence
+                    val assistantMessage = Message(
+                        text = response.text,
+                        isUser = false,
+                        confidence = response.confidence
+                    )
                     addMessage(assistantMessage)
                     _isLoading.value = false
                 }

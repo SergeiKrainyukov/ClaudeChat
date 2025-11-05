@@ -5,7 +5,8 @@ import com.google.gson.annotations.SerializedName
 data class ClaudeRequest(
     val model: String = "claude-sonnet-4-20250514",
     val max_tokens: Int = 1024,
-    val messages: List<ClaudeMessage>
+    val messages: List<ClaudeMessage>,
+    val system: String? = null
 )
 
 data class ClaudeMessage(
@@ -26,4 +27,15 @@ data class ClaudeResponse(
 data class ContentBlock(
     val type: String,
     val text: String
+)
+
+// Структурированный ответ от Claude в JSON формате
+data class ClaudeJsonResponse(
+    val text: String,
+    val metadata: ResponseMetadata? = null
+)
+
+data class ResponseMetadata(
+    val confidence: Double? = null,
+    val tokens_used: Int? = null
 )
