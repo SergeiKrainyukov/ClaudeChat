@@ -53,7 +53,8 @@ fun AppNavigation(
         Screen.MAIN_MENU -> {
             MainMenuScreen(
                 onChatSelected = { currentScreen = Screen.CHAT },
-                onGoalsSelected = { currentScreen = Screen.GOALS }
+                onGoalsSelected = { currentScreen = Screen.GOALS },
+                onMultiAgentSelected = { currentScreen = Screen.MULTI_AGENT }
             )
         }
         Screen.CHAT -> {
@@ -68,6 +69,13 @@ fun AppNavigation(
                 onBack = { currentScreen = Screen.MAIN_MENU }
             )
         }
+        Screen.MULTI_AGENT -> {
+            ChatScreen(
+                viewModel = viewModel,
+                onBack = { currentScreen = Screen.MAIN_MENU },
+                isMultiAgentMode = true
+            )
+        }
     }
 }
 
@@ -77,5 +85,6 @@ fun AppNavigation(
 enum class Screen {
     MAIN_MENU,
     CHAT,
-    GOALS
+    GOALS,
+    MULTI_AGENT
 }

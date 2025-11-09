@@ -22,15 +22,21 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,
-    onBack: (() -> Unit)? = null
+    onBack: (() -> Unit)? = null,
+    isMultiAgentMode: Boolean = false
 ) {
     val messages by viewModel.messages.observeAsState(emptyList())
     val isLoading by viewModel.isLoading.observeAsState(false)
     val error by viewModel.error.observeAsState()
-    
+
     var messageText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+
+    // Устанавливаем режим при первой загрузке
+    LaunchedEffect(isMultiAgentMode) {
+        viewModel.setMultiAgentMode(isMultiAgentMode)
+    }
     
     // Автоматическая прокрутка при появлении новых сообщений
     LaunchedEffect(messages.size) {
@@ -51,7 +57,7 @@ fun ChatScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Claude Chat") },
+                title = { Text(if (isMultiAgentMode) "Многоагентный совет" else "Claude Chat") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary

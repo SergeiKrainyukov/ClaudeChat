@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName
 
 data class ClaudeRequest(
     val model: String = "claude-sonnet-4-20250514",
-    val max_tokens: Int = 1024,
+    val max_tokens: Int = 4096,
     val messages: List<ClaudeMessage>,
     val system: String? = null
 )

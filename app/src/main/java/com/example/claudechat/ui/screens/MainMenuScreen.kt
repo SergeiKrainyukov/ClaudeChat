@@ -3,9 +3,12 @@ package com.example.claudechat.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -22,7 +25,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun MainMenuScreen(
     onChatSelected: () -> Unit,
-    onGoalsSelected: () -> Unit
+    onGoalsSelected: () -> Unit,
+    onMultiAgentSelected: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -39,10 +43,12 @@ fun MainMenuScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
-            verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Spacer(modifier = Modifier.height(24.dp))
+
             Text(
                 text = "Добро пожаловать!",
                 style = MaterialTheme.typography.headlineLarge,
@@ -78,6 +84,18 @@ fun MainMenuScreen(
                 description = "Создайте персонализированный план достижения вашей цели с помощью AI",
                 onClick = onGoalsSelected
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Кнопка многоагентного режима
+            MenuCard(
+                icon = Icons.Default.Person,
+                title = "Многоагентный совет",
+                description = "Получите мнение нескольких экспертов для принятия важного решения",
+                onClick = onMultiAgentSelected
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -95,11 +113,11 @@ private fun MenuCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(160.dp)
+            .height(200.dp)
             .clickable(
                 onClick = onClick,
                 indication = null,
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                interactionSource = remember { MutableInteractionSource() }
             ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
@@ -132,7 +150,8 @@ private fun MenuCard(
                 text = description,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                maxLines = 2
             )
         }
     }

@@ -16,26 +16,27 @@ class ChatRepository {
     private val apiService = ClaudeApiClient.apiService
     private val conversationHistory = mutableListOf<ClaudeMessage>()
     private val gson = Gson()
+    private var customSystemPrompt: String? = null
 
     suspend fun sendMessage(userMessage: String, useJsonFormat: Boolean = false): Result<MessageWithConfidence> {
         return try {
             // Добавляем сообщение пользователя в историю
             conversationHistory.add(ClaudeMessage(role = "user", content = userMessage))
 
-            // System prompt (только для JSON формата если нужно)
-            val systemPrompt = if (useJsonFormat) {
-                """
-                You MUST respond ONLY with valid JSON in this exact format:
-                {
-                    "text": "your response here",
-                    "metadata": {
-                        "confidence": 0.95
+            // System prompt
+            val systemPrompt = when {
+                customSystemPrompt != null -> customSystemPrompt
+                useJsonFormat -> """
+                    You MUST respond ONLY with valid JSON in this exact format:
+                    {
+                        "text": "your response here",
+                        "metadata": {
+                            "confidence": 0.95
+                        }
                     }
-                }
-                Do not include any text before or after the JSON. Only output valid JSON.
-                """.trimIndent()
-            } else {
-                null
+                    Do not include any text before or after the JSON. Only output valid JSON.
+                    """.trimIndent()
+                else -> null
             }
 
             // Создаём запрос
@@ -83,5 +84,12 @@ class ChatRepository {
     
     fun clearHistory() {
         conversationHistory.clear()
+    }
+
+    /**
+     * Устанавливает custom system prompt для режима чата
+     */
+    fun setSystemPrompt(prompt: String?) {
+        customSystemPrompt = prompt
     }
 }

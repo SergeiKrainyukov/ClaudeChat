@@ -21,6 +21,7 @@ import com.example.claudechat.ui.theme.AssistantMessageBackground
 import com.example.claudechat.ui.theme.MessageTextAssistant
 import com.example.claudechat.ui.theme.MessageTextUser
 import com.example.claudechat.ui.theme.UserMessageBackground
+import dev.jeziellago.compose.markdowntext.MarkdownText
 
 @Composable
 fun MessageBubble(
@@ -35,7 +36,7 @@ fun MessageBubble(
     ) {
         Column(
             modifier = Modifier
-                .widthIn(max = 280.dp)
+                .widthIn(max = if (message.useMarkdown) 360.dp else 280.dp)
                 .clip(
                     RoundedCornerShape(
                         topStart = 16.dp,
@@ -49,11 +50,20 @@ fun MessageBubble(
                 )
                 .padding(12.dp)
         ) {
-            Text(
-                text = message.text,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (message.isUser) MessageTextUser else MessageTextAssistant
-            )
+            // Используем Markdown для сообщений с флагом useMarkdown
+            if (message.useMarkdown && !message.isUser) {
+                MarkdownText(
+                    markdown = message.text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MessageTextAssistant
+                )
+            } else {
+                Text(
+                    text = message.text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (message.isUser) MessageTextUser else MessageTextAssistant
+                )
+            }
 
             // Показываем процент уверенности только для сообщений ассистента
             if (!message.isUser && message.confidence != null) {

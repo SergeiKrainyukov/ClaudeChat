@@ -4,5 +4,6 @@ data class Message(
     val text: String,
     val isUser: Boolean,
     val timestamp: Long = System.currentTimeMillis(),
-    val confidence: Double? = null
+    val confidence: Double? = null,
+    val useMarkdown: Boolean = false
 )
