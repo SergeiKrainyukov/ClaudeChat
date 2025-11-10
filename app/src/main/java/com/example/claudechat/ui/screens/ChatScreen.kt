@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -30,6 +31,8 @@ fun ChatScreen(
     val error by viewModel.error.observeAsState()
 
     var messageText by remember { mutableStateOf("") }
+    var showTemperatureDialog by remember { mutableStateOf(false) }
+    val currentTemperature by viewModel.temperature.observeAsState(1.0)
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
@@ -74,6 +77,13 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showTemperatureDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Настройки температуры",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                     IconButton(onClick = { viewModel.clearChat() }) {
                         Icon(
                             imageVector = Icons.Default.Clear,
@@ -168,4 +178,68 @@ fun ChatScreen(
             }
         }
     }
+
+    // Диалоговое окно настройки температуры
+    if (showTemperatureDialog) {
+        TemperatureDialog(
+            currentTemperature = currentTemperature,
+            onDismiss = { showTemperatureDialog = false },
+            onConfirm = { newTemp ->
+                viewModel.setTemperature(newTemp)
+                showTemperatureDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun TemperatureDialog(
+    currentTemperature: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit
+) {
+    var temperatureText by remember { mutableStateOf(currentTemperature.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Настройка температуры") },
+        text = {
+            Column {
+                Text(
+                    text = "Введите значение температуры (0.0 - 1.0)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                TextField(
+                    value = temperatureText,
+                    onValueChange = { temperatureText = it },
+                    label = { Text("Температура") },
+                    placeholder = { Text("1.0") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = "По умолчанию: 1.0\nБолее низкие значения - более предсказуемые ответы",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val temp = temperatureText.toDoubleOrNull() ?: currentTemperature
+                    onConfirm(temp)
+                }
+            ) {
+                Text("OK")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
 }

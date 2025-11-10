@@ -23,6 +23,9 @@ class ChatViewModel : ViewModel() {
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> = _error
 
+    private val _temperature = MutableLiveData(1.0)
+    val temperature: LiveData<Double> = _temperature
+
     private var currentChatType: ChatType = ChatType.DEFAULT
     
     fun sendMessage(text: String) {
@@ -78,5 +81,14 @@ class ChatViewModel : ViewModel() {
             clearChat()
             repository.setSystemPrompt(SystemPrompts.getPrompt(currentChatType))
         }
+    }
+
+    /**
+     * Устанавливает температуру для запросов
+     */
+    fun setTemperature(temp: Double) {
+        val validTemp = temp.coerceIn(0.0, 1.0)
+        _temperature.value = validTemp
+        repository.setTemperature(validTemp)
     }
 }

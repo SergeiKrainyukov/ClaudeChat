@@ -17,6 +17,7 @@ class ChatRepository {
     private val conversationHistory = mutableListOf<ClaudeMessage>()
     private val gson = Gson()
     private var customSystemPrompt: String? = null
+    private var temperature: Double = 1.0 // Значение по умолчанию
 
     suspend fun sendMessage(userMessage: String, useJsonFormat: Boolean = false): Result<MessageWithConfidence> {
         return try {
@@ -42,7 +43,8 @@ class ChatRepository {
             // Создаём запрос
             val request = ClaudeRequest(
                 messages = conversationHistory.toList(),
-                system = systemPrompt
+                system = systemPrompt,
+                temperature = temperature
             )
 
             // Отправляем запрос
@@ -92,4 +94,16 @@ class ChatRepository {
     fun setSystemPrompt(prompt: String?) {
         customSystemPrompt = prompt
     }
+
+    /**
+     * Устанавливает температуру для запросов к API
+     */
+    fun setTemperature(temp: Double) {
+        temperature = temp.coerceIn(0.0, 1.0)
+    }
+
+    /**
+     * Получает текущую температуру
+     */
+    fun getTemperature(): Double = temperature
 }

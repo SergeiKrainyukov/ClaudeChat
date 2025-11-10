@@ -6,7 +6,8 @@ data class ClaudeRequest(
     val model: String = "claude-sonnet-4-20250514",
     val max_tokens: Int = 4096,
     val messages: List<ClaudeMessage>,
-    val system: String? = null
+    val system: String? = null,
+    val temperature: Double? = null
 )
 
 data class ClaudeMessage(
