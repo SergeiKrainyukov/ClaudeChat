@@ -14,6 +14,7 @@ import com.example.claudechat.ui.theme.ClaudeChatTheme
 import com.example.claudechat.ui.screens.ChatScreen
 import com.example.claudechat.ui.screens.GoalScreen
 import com.example.claudechat.ui.screens.MainMenuScreen
+import com.example.claudechat.ui.screens.ModelComparisonScreen
 import com.example.claudechat.viewmodel.ChatViewModel
 
 class MainActivity : ComponentActivity() {
@@ -54,7 +55,8 @@ fun AppNavigation(
             MainMenuScreen(
                 onChatSelected = { currentScreen = Screen.CHAT },
                 onGoalsSelected = { currentScreen = Screen.GOALS },
-                onMultiAgentSelected = { currentScreen = Screen.MULTI_AGENT }
+                onMultiAgentSelected = { currentScreen = Screen.MULTI_AGENT },
+                onModelComparisonSelected = { currentScreen = Screen.MODEL_COMPARISON }
             )
         }
         Screen.CHAT -> {
@@ -76,6 +78,11 @@ fun AppNavigation(
                 isMultiAgentMode = true
             )
         }
+        Screen.MODEL_COMPARISON -> {
+            ModelComparisonScreen(
+                onBackClick = { currentScreen = Screen.MAIN_MENU }
+            )
+        }
     }
 }
 
@@ -86,5 +93,6 @@ enum class Screen {
     MAIN_MENU,
     CHAT,
     GOALS,
-    MULTI_AGENT
+    MULTI_AGENT,
+    MODEL_COMPARISON
 }

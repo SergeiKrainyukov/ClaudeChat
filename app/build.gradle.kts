@@ -75,4 +75,7 @@ dependencies {
 
     // Markdown rendering
     implementation("com.github.jeziellago:compose-markdown:0.5.4")
+
+    // Hugging Face API (используем те же Retrofit и OkHttp)
+    // Дополнительные зависимости не требуются, так как используем уже добавленные
 }
