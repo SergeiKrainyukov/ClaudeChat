@@ -22,7 +22,19 @@ data class ClaudeResponse(
     val content: List<ContentBlock>,
     val model: String,
     @SerializedName("stop_reason")
-    val stopReason: String?
+    val stopReason: String?,
+    val usage: UsageInfo?
+)
+
+data class UsageInfo(
+    @SerializedName("input_tokens")
+    val inputTokens: Int,
+    @SerializedName("output_tokens")
+    val outputTokens: Int,
+    @SerializedName("cache_creation_input_tokens")
+    val cacheCreationInputTokens: Int? = null,
+    @SerializedName("cache_read_input_tokens")
+    val cacheReadInputTokens: Int? = null
 )
 
 data class ContentBlock(

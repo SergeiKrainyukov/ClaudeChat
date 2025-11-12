@@ -41,12 +41,15 @@ class ChatViewModel : ViewModel() {
         viewModelScope.launch {
             repository.sendMessage(text)
                 .onSuccess { response ->
-                    // Добавляем ответ Claude с confidence
+                    // Добавляем ответ Claude с confidence и токенами
                     val assistantMessage = Message(
                         text = response.text,
                         isUser = false,
                         confidence = response.confidence,
-                        useMarkdown = currentChatType == ChatType.MULTI_AGENT
+                        useMarkdown = currentChatType == ChatType.MULTI_AGENT,
+                        inputTokens = response.inputTokens,
+                        outputTokens = response.outputTokens,
+                        totalTokens = response.totalTokens
                     )
                     addMessage(assistantMessage)
                     _isLoading.value = false

@@ -2,6 +2,7 @@ package com.example.claudechat.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -127,7 +128,67 @@ fun ChatScreen(
                     }
                 }
             }
-            
+
+            // Панель тестовых запросов (только в обычном режиме)
+            if (!isMultiAgentMode) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Text(
+                            text = "Тестирование токенов:",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) {
+                            item {
+                                AssistChip(
+                                    onClick = {
+                                        viewModel.sendMessage("Привет")
+                                    },
+                                    label = { Text("Короткий запрос") },
+                                    enabled = !isLoading
+                                )
+                            }
+                            item {
+                                AssistChip(
+                                    onClick = {
+                                        viewModel.sendMessage(
+                                            "Объясни подробно, что такое искусственный интеллект, " +
+                                            "как он работает, какие существуют виды ИИ, где применяется, " +
+                                            "какие есть преимущества и недостатки использования ИИ в современном мире."
+                                        )
+                                    },
+                                    label = { Text("Длинный запрос") },
+                                    enabled = !isLoading
+                                )
+                            }
+                            item {
+                                AssistChip(
+                                    onClick = {
+                                        val longPrompt = buildString {
+                                            append("Расскажи максимально подробно про ")
+                                            repeat(100) {
+                                                append("историю развития компьютеров, ")
+                                            }
+                                            append("и их влияние на современное общество.")
+                                        }
+                                        viewModel.sendMessage(longPrompt)
+                                    },
+                                    label = { Text("Превышение лимита") },
+                                    enabled = !isLoading
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Поле ввода
             Surface(
                 modifier = Modifier.fillMaxWidth(),

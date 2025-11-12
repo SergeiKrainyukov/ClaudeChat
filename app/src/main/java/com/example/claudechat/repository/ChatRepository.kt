@@ -8,7 +8,10 @@ import com.google.gson.Gson
 
 data class MessageWithConfidence(
     val text: String,
-    val confidence: Double?
+    val confidence: Double?,
+    val inputTokens: Int = 0,
+    val outputTokens: Int = 0,
+    val totalTokens: Int = 0
 )
 
 class ChatRepository {
@@ -78,7 +81,20 @@ class ChatRepository {
             // Добавляем ответ ассистента в историю
             conversationHistory.add(ClaudeMessage(role = "assistant", content = assistantMessage))
 
-            Result.success(MessageWithConfidence(text = assistantMessage, confidence = confidence))
+            // Извлекаем информацию о токенах
+            val inputTokens = response.usage?.inputTokens ?: 0
+            val outputTokens = response.usage?.outputTokens ?: 0
+            val totalTokens = inputTokens + outputTokens
+
+            Result.success(
+                MessageWithConfidence(
+                    text = assistantMessage,
+                    confidence = confidence,
+                    inputTokens = inputTokens,
+                    outputTokens = outputTokens,
+                    totalTokens = totalTokens
+                )
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }

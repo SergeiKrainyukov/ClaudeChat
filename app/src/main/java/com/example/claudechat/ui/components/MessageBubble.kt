@@ -74,6 +74,16 @@ fun MessageBubble(
                     color = MessageTextAssistant.copy(alpha = 0.7f)
                 )
             }
+
+            // Показываем информацию о токенах только для сообщений ассистента
+            if (!message.isUser && message.totalTokens > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Токены: ${message.inputTokens} вход / ${message.outputTokens} выход (всего: ${message.totalTokens})",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MessageTextAssistant.copy(alpha = 0.7f)
+                )
+            }
         }
     }
 }
