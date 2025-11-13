@@ -33,7 +33,9 @@ fun ChatScreen(
 
     var messageText by remember { mutableStateOf("") }
     var showTemperatureDialog by remember { mutableStateOf(false) }
+    var showCompressionStats by remember { mutableStateOf(false) }
     val currentTemperature by viewModel.temperature.observeAsState(1.0)
+    val compressionStats by viewModel.compressionStats.observeAsState(Triple(0, 0, 0))
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
@@ -181,6 +183,34 @@ fun ChatScreen(
                                         viewModel.sendMessage(longPrompt)
                                     },
                                     label = { Text("Превышение лимита") },
+                                    enabled = !isLoading
+                                )
+                            }
+                            item {
+                                AssistChip(
+                                    onClick = {
+                                        // Запускаем серию сообщений для демонстрации компрессии
+                                        coroutineScope.launch {
+                                            val compressionTestMessages = listOf(
+                                                "Привет! Меня зовут Алексей, и я мечтаю стать космонавтом. Расскажи, с чего начать?",
+                                                "Какое образование нужно для того, чтобы стать космонавтом?",
+                                                "Сколько времени занимает подготовка космонавтов?",
+                                                "Расскажи про физические требования к космонавтам",
+                                                "Какие психологические качества важны для работы в космосе?",
+                                                "Что такое невесомость и как к ней готовятся?",
+                                                "Расскажи про МКС - что это и как там живут космонавты?",
+                                                "Какие эксперименты проводят на МКС?",
+                                                "Как космонавты питаются в космосе?",
+                                                "Что будет после того как я стану космонавтом - какие миссии меня могут ждать?"
+                                            )
+
+                                            compressionTestMessages.forEach { message ->
+                                                viewModel.sendMessage(message)
+                                                kotlinx.coroutines.delay(5000) // Задержка 5 секунд между сообщениями
+                                            }
+                                        }
+                                    },
+                                    label = { Text("🚀 Тест компрессии") },
                                     enabled = !isLoading
                                 )
                             }

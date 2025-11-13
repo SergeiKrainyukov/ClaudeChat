@@ -46,7 +46,14 @@ fun MessageBubble(
                     )
                 )
                 .background(
-                    if (message.isUser) UserMessageBackground else AssistantMessageBackground
+                    if (message.isSummary) {
+                        // Специальный цвет для summary сообщений
+                        MaterialTheme.colorScheme.tertiaryContainer
+                    } else if (message.isUser) {
+                        UserMessageBackground
+                    } else {
+                        AssistantMessageBackground
+                    }
                 )
                 .padding(12.dp)
         ) {
@@ -82,6 +89,16 @@ fun MessageBubble(
                     text = "Токены: ${message.inputTokens} вход / ${message.outputTokens} выход (всего: ${message.totalTokens})",
                     style = MaterialTheme.typography.labelSmall,
                     color = MessageTextAssistant.copy(alpha = 0.7f)
+                )
+            }
+
+            // Показываем информацию о сжатии для summary сообщений
+            if (message.isSummary) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Сжато сообщений: ${message.originalMessagesCount} | Сэкономлено токенов: ~${message.savedTokens}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                 )
             }
         }

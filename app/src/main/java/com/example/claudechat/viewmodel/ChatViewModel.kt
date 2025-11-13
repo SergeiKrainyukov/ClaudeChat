@@ -26,19 +26,27 @@ class ChatViewModel : ViewModel() {
     private val _temperature = MutableLiveData(1.0)
     val temperature: LiveData<Double> = _temperature
 
+    private val _compressionStats = MutableLiveData<Triple<Int, Int, Int>>(Triple(0, 0, 0))
+    val compressionStats: LiveData<Triple<Int, Int, Int>> = _compressionStats
+
     private var currentChatType: ChatType = ChatType.DEFAULT
     
     fun sendMessage(text: String) {
         if (text.isBlank()) return
-        
+
         // Добавляем сообщение пользователя
         val userMessage = Message(text = text, isUser = true)
         addMessage(userMessage)
-        
+
         _isLoading.value = true
         _error.value = null
-        
+
         viewModelScope.launch {
+            // Проверяем, нужна ли компрессия перед отправкой
+            if (repository.shouldCompress()) {
+                compressHistoryIfNeeded()
+            }
+
             repository.sendMessage(text)
                 .onSuccess { response ->
                     // Добавляем ответ Claude с confidence и токенами
@@ -53,6 +61,9 @@ class ChatViewModel : ViewModel() {
                     )
                     addMessage(assistantMessage)
                     _isLoading.value = false
+
+                    // Обновляем статистику компрессии
+                    updateCompressionStats()
                 }
                 .onFailure { exception ->
                     _error.value = "Ошибка: ${exception.message}"
@@ -93,5 +104,55 @@ class ChatViewModel : ViewModel() {
         val validTemp = temp.coerceIn(0.0, 1.0)
         _temperature.value = validTemp
         repository.setTemperature(validTemp)
+    }
+
+    /**
+     * Выполняет компрессию истории диалога
+     */
+    private suspend fun compressHistoryIfNeeded() {
+        repository.compressHistory()
+            .onSuccess { (summary, savedTokens) ->
+                // Добавляем summary сообщение в UI
+                val summaryMessage = Message(
+                    text = "📊 История диалога сжата. Сэкономлено ~$savedTokens токенов.\n\nРезюме: $summary",
+                    isUser = false,
+                    isSummary = true,
+                    originalMessagesCount = 10,
+                    savedTokens = savedTokens,
+                    useMarkdown = true
+                )
+
+                // Удаляем сжатые сообщения из UI (первые 10)
+                val currentMessages = _messages.value.orEmpty().toMutableList()
+                if (currentMessages.size >= 10) {
+                    // Удаляем первые 10 сообщений
+                    repeat(10) {
+                        if (currentMessages.isNotEmpty()) {
+                            currentMessages.removeAt(0)
+                        }
+                    }
+                }
+                // Добавляем summary в начало
+                currentMessages.add(0, summaryMessage)
+                _messages.value = currentMessages
+            }
+            .onFailure { exception ->
+                // Логируем ошибку, но не показываем пользователю
+                println("Ошибка компрессии: ${exception.message}")
+            }
+    }
+
+    /**
+     * Обновляет статистику компрессии
+     */
+    private fun updateCompressionStats() {
+        _compressionStats.value = repository.getCompressionStats()
+    }
+
+    /**
+     * Включает/выключает компрессию
+     */
+    fun setCompressionEnabled(enabled: Boolean) {
+        repository.setCompressionEnabled(enabled)
     }
 }

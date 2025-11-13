@@ -8,5 +8,8 @@ data class Message(
     val useMarkdown: Boolean = false,
     val inputTokens: Int = 0,
     val outputTokens: Int = 0,
-    val totalTokens: Int = 0
+    val totalTokens: Int = 0,
+    val isSummary: Boolean = false, // Флаг, что это summary сообщение
+    val originalMessagesCount: Int = 0, // Количество оригинальных сообщений в summary
+    val savedTokens: Int = 0 // Количество сэкономленных токенов благодаря сжатию
 )
