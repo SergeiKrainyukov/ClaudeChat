@@ -57,12 +57,19 @@ fun MessageBubble(
                 )
                 .padding(12.dp)
         ) {
-            // Используем Markdown для сообщений с флагом useMarkdown
-            if (message.useMarkdown && !message.isUser) {
+            // Используем Markdown для сообщений с флагом useMarkdown или для summary
+            if ((message.useMarkdown || message.isSummary) && !message.isUser) {
                 MarkdownText(
                     markdown = message.text,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MessageTextAssistant
+                    modifier = Modifier.fillMaxWidth(),
+                    color = if (message.isSummary) {
+                        MaterialTheme.colorScheme.onTertiaryContainer
+                    } else {
+                        MessageTextAssistant
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    isTextSelectable = true,
+                    disableLinkMovementMethod = false
                 )
             } else {
                 Text(

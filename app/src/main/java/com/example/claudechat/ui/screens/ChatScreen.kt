@@ -25,7 +25,9 @@ import kotlinx.coroutines.launch
 fun ChatScreen(
     viewModel: ChatViewModel,
     onBack: (() -> Unit)? = null,
-    isMultiAgentMode: Boolean = false
+    isMultiAgentMode: Boolean = false,
+    initialMessage: String? = null,
+    initialMessageIsSummary: Boolean = false
 ) {
     val messages by viewModel.messages.observeAsState(emptyList())
     val isLoading by viewModel.isLoading.observeAsState(false)
@@ -42,6 +44,13 @@ fun ChatScreen(
     // Устанавливаем режим при первой загрузке
     LaunchedEffect(isMultiAgentMode) {
         viewModel.setMultiAgentMode(isMultiAgentMode)
+    }
+
+    // Загружаем начальное сообщение, если передано
+    LaunchedEffect(initialMessage) {
+        if (initialMessage != null) {
+            viewModel.loadInitialMessage(initialMessage, initialMessageIsSummary)
+        }
     }
     
     // Автоматическая прокрутка при появлении новых сообщений
@@ -148,6 +157,19 @@ fun ChatScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(horizontal = 4.dp)
                         ) {
+                            item {
+                                AssistChip(
+                                    onClick = {
+                                        viewModel.saveSummary()
+                                    },
+                                    label = { Text("💾 Сохранить Summary") },
+                                    enabled = !isLoading && viewModel.getHistorySize() > 0,
+                                    colors = AssistChipDefaults.assistChipColors(
+                                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                        labelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                )
+                            }
                             item {
                                 AssistChip(
                                     onClick = {

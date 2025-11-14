@@ -1,8 +1,9 @@
 package com.example.claudechat.viewmodel
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.claudechat.model.Message
 import com.example.claudechat.repository.ChatRepository
@@ -10,9 +11,9 @@ import com.example.claudechat.utils.ChatType
 import com.example.claudechat.utils.SystemPrompts
 import kotlinx.coroutines.launch
 
-class ChatViewModel : ViewModel() {
+class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = ChatRepository()
+    private val repository = ChatRepository(application.applicationContext)
 
     private val _messages = MutableLiveData<List<Message>>(emptyList())
     val messages: LiveData<List<Message>> = _messages
@@ -77,11 +78,96 @@ class ChatViewModel : ViewModel() {
         currentMessages.add(message)
         _messages.value = currentMessages
     }
-    
+
     fun clearChat() {
         _messages.value = emptyList()
         repository.clearHistory()
     }
+
+    /**
+     * Загружает начальное сообщение в чат
+     * Если это summary, добавляет его в system prompt вместо отображения в чате
+     */
+    fun loadInitialMessage(content: String, isSummary: Boolean = false) {
+        clearChat()
+
+        if (isSummary) {
+            // Если это summary, добавляем его в system prompt для контекста
+            val systemPromptWithSummary = """
+                Вы - AI-ассистент Claude. Используйте следующую информацию из предыдущего диалога для контекста:
+
+                $content
+
+                Продолжайте беседу, используя этот контекст, но не упоминайте напрямую, что получили резюме.
+            """.trimIndent()
+
+            repository.setSystemPrompt(systemPromptWithSummary)
+
+            // Добавляем информационное сообщение в UI
+            val infoMessage = Message(
+                text = "📋 Загружен контекст из предыдущего диалога. Можете продолжить беседу.",
+                isUser = false,
+                useMarkdown = false,
+                isSummary = false
+            )
+            addMessage(infoMessage)
+        } else {
+            // Если это обычное сообщение, просто отображаем его
+            val initialMessage = Message(
+                text = content,
+                isUser = false,
+                useMarkdown = true,
+                isSummary = false
+            )
+            addMessage(initialMessage)
+        }
+    }
+
+    /**
+     * Создает summary текущего диалога и сохраняет в БД
+     */
+    fun saveSummary() {
+        if (repository.getHistorySize() == 0) {
+            _error.value = "История диалога пуста"
+            return
+        }
+
+        _isLoading.value = true
+        _error.value = null
+
+        viewModelScope.launch {
+            val result = repository.createAndSaveSummary()
+
+            result.fold(
+                onSuccess = { (summary, savedTokens) ->
+                    println("ChatViewModel: Summary успешно сохранен - savedTokens: $savedTokens")
+
+                    // Добавляем summary как сообщение в UI
+                    val summaryMessage = Message(
+                        text = summary,
+                        isUser = false,
+                        useMarkdown = true,
+                        isSummary = true,
+                        savedTokens = savedTokens,
+                        originalMessagesCount = repository.getHistorySize()
+                    )
+                    addMessage(summaryMessage)
+
+                    _isLoading.value = false
+                },
+                onFailure = { e ->
+                    println("ChatViewModel: Ошибка сохранения summary - ${e.message}")
+                    _error.value = "Ошибка создания summary: ${e.message}"
+                    _isLoading.value = false
+                }
+            )
+        }
+    }
+
+    /**
+     * Получает количество сообщений в истории
+     */
+    fun getHistorySize(): Int = repository.getHistorySize()
 
     /**
      * Устанавливает режим чата (обычный или многоагентный)

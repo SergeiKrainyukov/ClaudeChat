@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.devtools.ksp") version "1.9.20-1.0.14"
 }
 
 android {
@@ -75,6 +76,12 @@ dependencies {
 
     // Markdown rendering
     implementation("com.github.jeziellago:compose-markdown:0.5.4")
+
+    // Room Database для долговременной памяти
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
 
     // Hugging Face API (используем те же Retrofit и OkHttp)
     // Дополнительные зависимости не требуются, так как используем уже добавленные

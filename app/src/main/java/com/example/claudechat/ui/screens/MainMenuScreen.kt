@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -28,7 +29,8 @@ fun MainMenuScreen(
     onChatSelected: () -> Unit,
     onGoalsSelected: () -> Unit,
     onMultiAgentSelected: () -> Unit,
-    onModelComparisonSelected: () -> Unit
+    onModelComparisonSelected: () -> Unit,
+    onMemorySelected: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -105,6 +107,16 @@ fun MainMenuScreen(
                 title = "Сравнение моделей",
                 description = "Сравните ответы двух моделей Hugging Face на один и тот же запрос",
                 onClick = onModelComparisonSelected
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Кнопка управления памятью
+            MenuCard(
+                icon = Icons.Default.DateRange,
+                title = "Управление памятью",
+                description = "Просмотр и управление сохраненными диалогами, сводками и статистикой",
+                onClick = onMemorySelected
             )
 
             Spacer(modifier = Modifier.height(24.dp))

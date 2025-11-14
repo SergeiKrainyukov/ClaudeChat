@@ -1,9 +1,13 @@
 package com.example.claudechat.repository
 
+import android.content.Context
 import com.example.claudechat.api.ClaudeApiClient
 import com.example.claudechat.api.ClaudeJsonResponse
 import com.example.claudechat.api.ClaudeMessage
 import com.example.claudechat.api.ClaudeRequest
+import com.example.claudechat.database.ChatDatabase
+import com.example.claudechat.database.ConversationDao
+import com.example.claudechat.database.ConversationEntity
 import com.google.gson.Gson
 
 data class MessageWithConfidence(
@@ -14,7 +18,7 @@ data class MessageWithConfidence(
     val totalTokens: Int = 0
 )
 
-class ChatRepository {
+class ChatRepository(context: Context) {
 
     private val apiService = ClaudeApiClient.apiService
     private val conversationHistory = mutableListOf<ClaudeMessage>()
@@ -22,11 +26,16 @@ class ChatRepository {
     private var customSystemPrompt: String? = null
     private var temperature: Double = 1.0 // Значение по умолчанию
 
+    // Database для долговременной памяти
+    private val database = ChatDatabase.getDatabase(context)
+    private val conversationDao: ConversationDao = database.conversationDao()
+    private val sessionId: String = "default" // Можно сделать динамическим
+
     // Настройки компрессии
     private var compressionEnabled: Boolean = true
     private val compressionThreshold: Int = 10 // Сжимаем каждые 10 сообщений (5 пар user-assistant)
     private var totalOriginalTokens: Int = 0 // Общее количество токенов без компрессии
-    private var totalCompressedTokens: Int = 0 // Общее количество токенов с компрессией
+    private var totalCompressedTokens: Int = 0 // Общее количество токенов с компрессии
 
     suspend fun sendMessage(userMessage: String, useJsonFormat: Boolean = false): Result<MessageWithConfidence> {
         return try {
@@ -256,4 +265,92 @@ class ChatRepository {
         totalOriginalTokens = 0
         totalCompressedTokens = 0
     }
+
+    /**
+     * Сохраняет сообщение в БД
+     */
+    suspend fun saveMessageToDatabase(role: String, content: String, isSummary: Boolean = false, savedTokens: Int = 0) {
+        val estimatedTokens = estimateTokens(content)
+        val entity = ConversationEntity(
+            role = role,
+            content = content,
+            isSummary = isSummary,
+            savedTokens = savedTokens,
+            estimatedTokens = estimatedTokens,
+            sessionId = sessionId,
+            compressedMessagesCount = if (isSummary) compressionThreshold else 0
+        )
+        val id = conversationDao.insertMessage(entity)
+        println("ChatRepository: Сохранено в БД - id: $id, role: $role, isSummary: $isSummary, sessionId: $sessionId, content: ${content.take(50)}")
+    }
+
+    /**
+     * Восстанавливает историю из БД
+     */
+    suspend fun restoreHistoryFromDatabase() {
+        val messages = conversationDao.getMessagesForSession(sessionId)
+        conversationHistory.clear()
+        messages.forEach { entity ->
+            conversationHistory.add(ClaudeMessage(role = entity.role, content = entity.content))
+        }
+    }
+
+    /**
+     * Очищает БД для текущей сессии
+     */
+    suspend fun clearDatabase() {
+        conversationDao.clearSession(sessionId)
+    }
+
+    /**
+     * Создает summary текущей истории диалога и сохраняет в БД
+     * Возвращает summary текст и количество сэкономленных токенов
+     */
+    suspend fun createAndSaveSummary(): Result<Pair<String, Int>> {
+        return try {
+            if (conversationHistory.isEmpty()) {
+                return Result.failure(Exception("История диалога пуста"))
+            }
+
+            println("ChatRepository: Создание summary для ${conversationHistory.size} сообщений")
+
+            // Подсчитываем токены в оригинальных сообщениях
+            val originalTokens = conversationHistory.sumOf { estimateTokens(it.content) }
+
+            // Создаем summary для всей истории
+            val summaryResult = createSummary(conversationHistory)
+
+            summaryResult.fold(
+                onSuccess = { summary ->
+                    // Подсчитываем токены в summary
+                    val summaryTokens = estimateTokens(summary)
+                    val savedTokens = originalTokens - summaryTokens
+
+                    println("ChatRepository: Summary создан - originalTokens: $originalTokens, summaryTokens: $summaryTokens, saved: $savedTokens")
+
+                    // Сохраняем summary в БД
+                    saveMessageToDatabase(
+                        role = "assistant",
+                        content = summary,
+                        isSummary = true,
+                        savedTokens = savedTokens
+                    )
+
+                    Result.success(Pair(summary, savedTokens))
+                },
+                onFailure = { error ->
+                    println("ChatRepository: Ошибка создания summary - ${error.message}")
+                    Result.failure(error)
+                }
+            )
+        } catch (e: Exception) {
+            println("ChatRepository: Исключение при создании summary - ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Получает количество сообщений в текущей истории
+     */
+    fun getHistorySize(): Int = conversationHistory.size
 }
