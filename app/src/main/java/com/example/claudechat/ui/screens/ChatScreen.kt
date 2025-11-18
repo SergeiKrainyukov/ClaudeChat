@@ -17,7 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.claudechat.ui.components.MessageBubble
+import com.example.claudechat.ui.components.McpStatusIndicator
+import com.example.claudechat.ui.components.TodoistQuickActions
+import com.example.claudechat.ui.components.TodoistActionsList
+import com.example.claudechat.ui.components.TodoistCard
 import com.example.claudechat.viewmodel.ChatViewModel
+import com.example.claudechat.data.mcp.models.McpConnectionState
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,6 +45,11 @@ fun ChatScreen(
     val compressionStats by viewModel.compressionStats.observeAsState(Triple(0, 0, 0))
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+
+    // MCP/Todoist состояние
+    val mcpConnectionState by viewModel.mcpConnectionState.observeAsState(McpConnectionState.Disconnected)
+    val cachedTasks by viewModel.cachedTasks.observeAsState(emptyList())
+    val mcpEnabled = remember { mutableStateOf(true) }
 
     // Устанавливаем режим при первой загрузке
     LaunchedEffect(isMultiAgentMode) {
@@ -112,6 +122,28 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            // MCP Status Indicator
+            if (mcpEnabled.value) {
+                McpStatusIndicator(
+                    connectionState = mcpConnectionState,
+                    onReconnect = { viewModel.reconnectMcp() },
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
+
+            // Todoist Quick Actions
+            if (mcpEnabled.value && mcpConnectionState is McpConnectionState.Connected) {
+                TodoistQuickActions(
+                    onCreateTask = {
+                        messageText = "Создай задачу: "
+                    },
+                    onListTasks = { viewModel.listTodoistTasks() },
+                    onListProjects = { viewModel.listTodoistProjects() },
+                    enabled = !isLoading,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+
             // Список сообщений
             LazyColumn(
                 modifier = Modifier

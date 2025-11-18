@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -30,7 +31,8 @@ fun MainMenuScreen(
     onGoalsSelected: () -> Unit,
     onMultiAgentSelected: () -> Unit,
     onModelComparisonSelected: () -> Unit,
-    onMemorySelected: () -> Unit
+    onMemorySelected: () -> Unit,
+    onTodoistSelected: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -107,6 +109,16 @@ fun MainMenuScreen(
                 title = "Сравнение моделей",
                 description = "Сравните ответы двух моделей Hugging Face на один и тот же запрос",
                 onClick = onModelComparisonSelected
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Кнопка Todoist
+            MenuCard(
+                icon = Icons.Default.CheckCircle,
+                title = "Задачи Todoist",
+                description = "Управляйте задачами и проектами через MCP сервер Todoist",
+                onClick = onTodoistSelected
             )
 
             Spacer(modifier = Modifier.height(24.dp))

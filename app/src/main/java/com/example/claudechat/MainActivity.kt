@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.claudechat.repository.ChatRepository
 import com.example.claudechat.ui.theme.ClaudeChatTheme
@@ -17,8 +18,10 @@ import com.example.claudechat.ui.screens.GoalScreen
 import com.example.claudechat.ui.screens.MainMenuScreen
 import com.example.claudechat.ui.screens.MemoryScreen
 import com.example.claudechat.ui.screens.ModelComparisonScreen
+import com.example.claudechat.ui.screens.TodoistScreen
 import com.example.claudechat.viewmodel.ChatViewModel
 import com.example.claudechat.viewmodel.MemoryViewModel
+import com.example.claudechat.viewmodel.TodoistViewModel
 
 class MainActivity : ComponentActivity() {
 
@@ -62,7 +65,8 @@ fun AppNavigation(
                 onGoalsSelected = { currentScreen = Screen.GOALS },
                 onMultiAgentSelected = { currentScreen = Screen.MULTI_AGENT },
                 onModelComparisonSelected = { currentScreen = Screen.MODEL_COMPARISON },
-                onMemorySelected = { currentScreen = Screen.MEMORY }
+                onMemorySelected = { currentScreen = Screen.MEMORY },
+                onTodoistSelected = { currentScreen = Screen.TODOIST }
             )
         }
         Screen.CHAT -> {
@@ -103,6 +107,18 @@ fun AppNavigation(
                 }
             )
         }
+        Screen.TODOIST -> {
+            val context = LocalContext.current
+            val todoistViewModel: TodoistViewModel = viewModel(
+                factory = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(
+                    context.applicationContext as android.app.Application
+                )
+            )
+            TodoistScreen(
+                viewModel = todoistViewModel,
+                onBack = { currentScreen = Screen.MAIN_MENU }
+            )
+        }
     }
 }
 
@@ -115,5 +131,6 @@ enum class Screen {
     GOALS,
     MULTI_AGENT,
     MODEL_COMPARISON,
-    MEMORY
+    MEMORY,
+    TODOIST
 }

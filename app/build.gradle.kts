@@ -1,7 +1,16 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("com.google.devtools.ksp") version "1.9.20-1.0.14"
+    id("com.google.devtools.ksp") version "2.0.0-1.0.21"
+    id("org.jetbrains.kotlin.plugin.serialization")
+    id("org.jetbrains.kotlin.plugin.compose")
+}
+
+configurations.all {
+    resolutionStrategy {
+        force("org.jetbrains.kotlinx:kotlinx-serialization-core:1.5.1")
+        force("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
+    }
 }
 
 android {
@@ -38,10 +47,6 @@ android {
     buildFeatures {
         compose = true
     }
-    
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.4"
-    }
 }
 
 dependencies {
@@ -68,7 +73,13 @@ dependencies {
     
     // Coroutines для асинхронных операций
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    
+
+    // Kotlinx Serialization для JSON (совместимая с Kotlin 1.9.20)
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
+
+    // WebSocket (уже включен в OkHttp 4.11.0)
+    implementation("com.squareup.okhttp3:okhttp:4.11.0")
+
     // ViewModel и LiveData
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")

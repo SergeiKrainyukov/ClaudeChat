@@ -5,15 +5,26 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.asLiveData
 import com.example.claudechat.model.Message
 import com.example.claudechat.repository.ChatRepository
 import com.example.claudechat.utils.ChatType
 import com.example.claudechat.utils.SystemPrompts
+import com.example.claudechat.data.mcp.McpRepository
+import com.example.claudechat.data.mcp.models.*
+import com.example.claudechat.utils.McpCommandParser
+import com.example.claudechat.utils.ParsedAction
 import kotlinx.coroutines.launch
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = ChatRepository(application.applicationContext)
+
+    // MCP/Todoist integration
+    private val mcpRepository = McpRepository(
+        serverUrl = "ws://10.0.2.2:8080/mcp",
+        enableDebugLogs = true
+    )
 
     private val _messages = MutableLiveData<List<Message>>(emptyList())
     val messages: LiveData<List<Message>> = _messages
@@ -31,6 +42,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val compressionStats: LiveData<Triple<Int, Int, Int>> = _compressionStats
 
     private var currentChatType: ChatType = ChatType.DEFAULT
+
+    // MCP состояние
+    val mcpConnectionState: LiveData<McpConnectionState> = mcpRepository.connectionState.asLiveData()
+    val cachedTasks: LiveData<List<TodoistTask>> = mcpRepository.cachedTasks.asLiveData()
+    val cachedProjects: LiveData<List<TodoistProject>> = mcpRepository.cachedProjects.asLiveData()
     
     fun sendMessage(text: String) {
         if (text.isBlank()) return
@@ -240,5 +256,177 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun setCompressionEnabled(enabled: Boolean) {
         repository.setCompressionEnabled(enabled)
+    }
+
+    // ==================== MCP/Todoist Methods ====================
+
+    /**
+     * Отправляет сообщение с проверкой на Todoist команды
+     */
+    fun sendMessageWithMcp(text: String) {
+        if (text.isBlank()) return
+
+        // Парсим сообщение на наличие Todoist команд
+        val parsedActions = McpCommandParser.parseActions(text)
+
+        // Добавляем сообщение пользователя с распарсенными действиями
+        val userMessage = Message(
+            text = text,
+            isUser = true,
+            todoistActions = parsedActions,
+            hasTodoistSuggestion = parsedActions.isNotEmpty()
+        )
+        addMessage(userMessage)
+
+        // Если есть команды с высоким confidence, выполняем автоматически
+        parsedActions
+            .filter { it.confidence >= 0.9 }
+            .forEach { parsedAction ->
+                executeTodoistAction(parsedAction.action)
+            }
+
+        // Отправляем обычное сообщение Claude
+        _isLoading.value = true
+        _error.value = null
+
+        viewModelScope.launch {
+            if (repository.shouldCompress()) {
+                compressHistoryIfNeeded()
+            }
+
+            repository.sendMessage(text)
+                .onSuccess { response ->
+                    // Парсим ответ Claude на наличие предложений Todoist
+                    val claudeActions = McpCommandParser.parseActions(response.text)
+
+                    val assistantMessage = Message(
+                        text = response.text,
+                        isUser = false,
+                        confidence = response.confidence,
+                        useMarkdown = currentChatType == ChatType.MULTI_AGENT,
+                        inputTokens = response.inputTokens,
+                        outputTokens = response.outputTokens,
+                        totalTokens = response.totalTokens,
+                        todoistActions = claudeActions,
+                        hasTodoistSuggestion = claudeActions.isNotEmpty()
+                    )
+                    addMessage(assistantMessage)
+                    _isLoading.value = false
+
+                    updateCompressionStats()
+                }
+                .onFailure { exception ->
+                    _error.value = "Ошибка: ${exception.message}"
+                    _isLoading.value = false
+                }
+        }
+    }
+
+    /**
+     * Выполняет действие Todoist
+     */
+    fun executeTodoistAction(action: TodoistAction) {
+        viewModelScope.launch {
+            _isLoading.value = true
+
+            when (val result = mcpRepository.executeAction(action)) {
+                is McpResult.Success<*> -> {
+                    val successMessage = when (action) {
+                        is TodoistAction.CreateTask -> {
+                            val task = result.data as? TodoistTask
+                            "✅ Задача создана: ${task?.content ?: action.content}"
+                        }
+                        is TodoistAction.CompleteTask -> "✅ Задача выполнена"
+                        is TodoistAction.ListTasks -> {
+                            val tasks = result.data as? List<*>
+                            "📋 Найдено задач: ${tasks?.size ?: 0}"
+                        }
+                        is TodoistAction.ListProjects -> {
+                            val projects = result.data as? List<*>
+                            "📁 Найдено проектов: ${projects?.size ?: 0}"
+                        }
+                        is TodoistAction.UpdateTask -> "✅ Задача обновлена"
+                        is TodoistAction.DeleteTask -> "✅ Задача удалена"
+                        else -> "✅ Действие выполнено"
+                    }
+
+                    // Добавляем сообщение об успехе
+                    val successMsg = Message(
+                        text = successMessage,
+                        isUser = false,
+                        useMarkdown = false
+                    )
+                    addMessage(successMsg)
+                }
+                is McpResult.Error -> {
+                    _error.value = "Ошибка MCP: ${result.message}"
+                }
+                else -> {}
+            }
+
+            _isLoading.value = false
+        }
+    }
+
+    /**
+     * Создает задачу в Todoist
+     */
+    fun createTodoistTask(
+        content: String,
+        description: String? = null,
+        dueString: String? = null,
+        priority: Int? = null
+    ) {
+        executeTodoistAction(
+            TodoistAction.CreateTask(
+                content = content,
+                description = description,
+                dueString = dueString,
+                priority = priority
+            )
+        )
+    }
+
+    /**
+     * Получает список задач из Todoist
+     */
+    fun listTodoistTasks() {
+        executeTodoistAction(TodoistAction.ListTasks)
+    }
+
+    /**
+     * Помечает задачу как выполненную
+     */
+    fun completeTodoistTask(taskId: String) {
+        executeTodoistAction(TodoistAction.CompleteTask(taskId))
+    }
+
+    /**
+     * Получает список проектов
+     */
+    fun listTodoistProjects() {
+        executeTodoistAction(TodoistAction.ListProjects)
+    }
+
+    /**
+     * Проверяет, подключен ли MCP сервер
+     */
+    fun isMcpConnected(): Boolean {
+        return mcpRepository.isConnected()
+    }
+
+    /**
+     * Переподключается к MCP серверу
+     */
+    fun reconnectMcp() {
+        mcpRepository.connect()
+    }
+
+    /**
+     * Очищает ресурсы при уничтожении ViewModel
+     */
+    override fun onCleared() {
+        super.onCleared()
+        mcpRepository.dispose()
     }
 }

@@ -14,7 +14,7 @@
         android:roundIcon="@drawable/ai_icon"
         android:supportsRtl="true"
         android:theme="@style/Theme.ClaudeChat"
-        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config"
         tools:targetApi="31">
         <activity
             android:name=".MainActivity"
