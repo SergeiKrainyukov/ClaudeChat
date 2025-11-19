@@ -33,23 +33,13 @@ fun TodoistScreen(
     onBack: () -> Unit
 ) {
     val mcpConnectionState by viewModel.mcpConnectionState.collectAsState()
-    val tasks by viewModel.tasks.observeAsState(emptyList())
-    val projects by viewModel.projects.observeAsState(emptyList())
     val chatMessages by viewModel.chatMessages.observeAsState(emptyList())
     val notifications by viewModel.notifications.observeAsState(emptyList())
     val notificationStatus by viewModel.notificationStatus.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.observeAsState()
     val successMessage by viewModel.successMessage.observeAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
-    var showCreateTaskDialog by remember { mutableStateOf(false) }
-
-    // Загружаем задачи и проекты при первом открытии
-    LaunchedEffect(Unit) {
-        viewModel.listTasks()
-        viewModel.listProjects()
-    }
 
     // Показываем Snackbar для ошибок и успехов
     val snackbarHostState = remember { SnackbarHostState() }
@@ -110,15 +100,6 @@ fun TodoistScreen(
                 )
             )
         },
-        floatingActionButton = {
-            if (selectedTab == 0) {
-                FloatingActionButton(
-                    onClick = { showCreateTaskDialog = true }
-                ) {
-                    Icon(Icons.Default.Add, "Создать задачу")
-                }
-            }
-        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         Column(
@@ -137,22 +118,12 @@ fun TodoistScreen(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("Задачи (${tasks.size})") }
-                )
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    text = { Text("Проекты (${projects.size})") }
-                )
-                Tab(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
                     text = { Text("Чат") }
                 )
                 Tab(
-                    selected = selectedTab == 3,
+                    selected = selectedTab == 1,
                     onClick = {
-                        selectedTab = 3
+                        selectedTab = 1
                         viewModel.refreshNotificationStatus()
                     },
                     text = { Text("Уведомления") }
@@ -161,22 +132,11 @@ fun TodoistScreen(
 
             // Контент вкладок
             when (selectedTab) {
-                0 -> TasksTab(
-                    viewModel = viewModel,
-                    tasks = tasks,
-                    isLoading = isLoading,
-                    onRefresh = { viewModel.listTasks() }
-                )
-                1 -> ProjectsTab(
-                    projects = projects,
-                    isLoading = isLoading,
-                    onRefresh = { viewModel.listProjects() }
-                )
-                2 -> ChatTab(
+                0 -> ChatTab(
                     viewModel = viewModel,
                     chatMessages = chatMessages
                 )
-                3 -> NotificationsTab(
+                1 -> NotificationsTab(
                     viewModel = viewModel,
                     notifications = notifications,
                     notificationStatus = notificationStatus
@@ -184,276 +144,6 @@ fun TodoistScreen(
             }
         }
     }
-
-    // Диалог создания задачи
-    if (showCreateTaskDialog) {
-        CreateTaskDialog(
-            projects = projects,
-            onDismiss = { showCreateTaskDialog = false },
-            onCreateTask = { content, description, projectId, dueString, priority ->
-                viewModel.createTask(
-                    content = content,
-                    description = description,
-                    projectId = projectId,
-                    dueString = dueString,
-                    priority = priority
-                )
-                showCreateTaskDialog = false
-            }
-        )
-    }
-}
-
-/**
- * Вкладка со списком задач
- */
-@Composable
-private fun TasksTab(
-    viewModel: TodoistViewModel,
-    tasks: List<com.example.claudechat.data.mcp.models.TodoistTask>,
-    isLoading: Boolean,
-    onRefresh: () -> Unit
-) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (isLoading && tasks.isEmpty()) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.Center)
-            )
-        } else if (tasks.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "Нет задач",
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Создайте первую задачу",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = onRefresh) {
-                    Icon(Icons.Default.Refresh, null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Обновить")
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(tasks) { task ->
-                    TodoistCard(
-                        task = task,
-                        onComplete = { viewModel.completeTask(task.id) },
-                        onDelete = { viewModel.deleteTask(task.id) }
-                    )
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(80.dp))
-                }
-            }
-        }
-    }
-}
-
-/**
- * Вкладка со списком проектов
- */
-@Composable
-private fun ProjectsTab(
-    projects: List<com.example.claudechat.data.mcp.models.TodoistProject>,
-    isLoading: Boolean,
-    onRefresh: () -> Unit
-) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (isLoading && projects.isEmpty()) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.Center)
-            )
-        } else if (projects.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    Icons.Default.Create,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "Нет проектов",
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = onRefresh) {
-                    Icon(Icons.Default.Refresh, null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Обновить")
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(projects) { project ->
-                    ProjectCard(project = project)
-                }
-            }
-        }
-    }
-}
-
-/**
- * Карточка проекта
- */
-@Composable
-private fun ProjectCard(
-    project: com.example.claudechat.data.mcp.models.TodoistProject
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.Create,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = project.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                if (project.color != null) {
-                    Text(
-                        text = project.color,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Диалог создания задачи
- */
-@Composable
-private fun CreateTaskDialog(
-    projects: List<com.example.claudechat.data.mcp.models.TodoistProject>,
-    onDismiss: () -> Unit,
-    onCreateTask: (String, String?, String?, String?, Int?) -> Unit
-) {
-    var taskContent by remember { mutableStateOf("") }
-    var taskDescription by remember { mutableStateOf("") }
-    var selectedProjectId by remember { mutableStateOf<String?>(null) }
-    var dueString by remember { mutableStateOf("") }
-    var priority by remember { mutableStateOf(1) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Создать задачу") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedTextField(
-                    value = taskContent,
-                    onValueChange = { taskContent = it },
-                    label = { Text("Название задачи *") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = taskDescription,
-                    onValueChange = { taskDescription = it },
-                    label = { Text("Описание") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                    maxLines = 4
-                )
-
-                OutlinedTextField(
-                    value = dueString,
-                    onValueChange = { dueString = it },
-                    label = { Text("Срок (например: tomorrow, next monday)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                Text(
-                    "Приоритет: ${priority}",
-                    style = MaterialTheme.typography.labelMedium
-                )
-                Slider(
-                    value = priority.toFloat(),
-                    onValueChange = { priority = it.toInt() },
-                    valueRange = 1f..4f,
-                    steps = 2
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (taskContent.isNotBlank()) {
-                        onCreateTask(
-                            taskContent,
-                            taskDescription.ifBlank { null },
-                            selectedProjectId,
-                            dueString.ifBlank { null },
-                            if (priority > 1) priority else null
-                        )
-                    }
-                },
-                enabled = taskContent.isNotBlank()
-            ) {
-                Text("Создать")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Отмена")
-            }
-        }
-    )
 }
 
 /**

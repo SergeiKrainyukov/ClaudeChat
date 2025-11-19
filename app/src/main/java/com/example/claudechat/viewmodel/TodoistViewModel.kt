@@ -7,11 +7,15 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.claudechat.data.mcp.McpRepository
 import com.example.claudechat.data.mcp.models.*
+import com.example.claudechat.database.ChatDatabase
+import com.example.claudechat.database.NotificationEntity
 import com.example.claudechat.utils.TodoistAiInterpreter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Сообщение в чате Todoist
@@ -43,6 +47,10 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
 
     // AI интерпретатор для понимания естественного языка
     private val aiInterpreter = TodoistAiInterpreter(application.applicationContext)
+
+    // База данных для сохранения уведомлений
+    private val database = ChatDatabase.getDatabase(application.applicationContext)
+    private val notificationDao = database.notificationDao()
 
     // Состояние подключения MCP
     val mcpConnectionState: StateFlow<McpConnectionState> = mcpRepository.connectionState
@@ -80,6 +88,9 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
     val notificationStatus: StateFlow<NotificationStatus?> = _notificationStatus.asStateFlow()
 
     init {
+        // Загружаем уведомления из БД при старте
+        loadNotificationsFromDatabase()
+
         // Настраиваем callback для получения уведомлений
         mcpRepository.setNotificationCallback { notificationData ->
             // Добавляем уведомление в список
@@ -90,6 +101,11 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
             )
             val currentNotifications = _notifications.value ?: emptyList()
             _notifications.postValue(currentNotifications + notification)
+
+            // Сохраняем уведомление в БД
+            viewModelScope.launch {
+                saveNotificationToDatabase(notification)
+            }
         }
 
         // Подключаемся к MCP серверу при создании ViewModel
@@ -524,6 +540,46 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
      */
     fun clearNotifications() {
         _notifications.value = emptyList()
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                notificationDao.deleteAll()
+            }
+        }
+    }
+
+    /**
+     * Загружает уведомления из базы данных
+     */
+    private fun loadNotificationsFromDatabase() {
+        viewModelScope.launch {
+            val entities: List<NotificationEntity> = withContext(Dispatchers.IO) {
+                notificationDao.getRecentNotifications(100) // Загружаем последние 100
+            }
+
+            val notifications = entities.map { entity: NotificationEntity ->
+                TaskNotification(
+                    message = entity.message,
+                    taskCount = entity.taskCount,
+                    timestamp = entity.timestamp
+                )
+            }
+
+            _notifications.postValue(notifications)
+        }
+    }
+
+    /**
+     * Сохраняет уведомление в базу данных
+     */
+    private suspend fun saveNotificationToDatabase(notification: TaskNotification) {
+        withContext<Unit>(Dispatchers.IO) {
+            val entity = NotificationEntity(
+                message = notification.message,
+                taskCount = notification.taskCount,
+                timestamp = notification.timestamp
+            )
+            notificationDao.insert(entity)
+        }
     }
 
     override fun onCleared() {
