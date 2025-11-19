@@ -572,190 +572,259 @@ private fun NotificationsTab(
     notifications: List<com.example.claudechat.viewmodel.TaskNotification>,
     notificationStatus: com.example.claudechat.data.mcp.models.NotificationStatus?
 ) {
-    var intervalInput by remember { mutableStateOf("60") }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        // Панель управления уведомлениями
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            // Заголовок с кнопками
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Управление уведомлениями",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Column {
+                    Text(
+                        text = "Уведомления (${notifications.size})",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
 
-                // Статус
-                notificationStatus?.let { status ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
+                    // Краткий статус
+                    notificationStatus?.let { status ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (status.enabled) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = if (status.enabled) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (status.enabled) {
+                                    "Включены (${status.intervalSeconds}с)"
+                                } else {
+                                    "Отключены"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Кнопка очистки
+                    IconButton(
+                        onClick = { viewModel.clearNotifications() },
+                        enabled = notifications.isNotEmpty()
+                    ) {
+                        Icon(Icons.Default.Delete, "Очистить список")
+                    }
+
+                    // Кнопка настроек
+                    IconButton(onClick = { showSettingsDialog = true }) {
+                        Icon(Icons.Default.Settings, "Настройки")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Список уведомлений
+            if (notifications.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = if (status.enabled) Icons.Default.CheckCircle else Icons.Default.Warning,
+                            Icons.Default.Info,
                             contentDescription = null,
-                            tint = if (status.enabled) Color(0xFF4CAF50) else Color(0xFFFF9800),
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = if (status.enabled) {
-                                "Уведомления включены (интервал: ${status.intervalSeconds}с)"
-                            } else {
-                                "Уведомления отключены"
-                            },
-                            style = MaterialTheme.typography.bodyMedium
+                            "Нет уведомлений",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Нажмите на шестеренку для настройки",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(notifications.reversed()) { notification ->
+                        NotificationCard(notification)
+                    }
+                }
+            }
+        }
+    }
+
+    // Диалог настроек
+    if (showSettingsDialog) {
+        NotificationSettingsDialog(
+            viewModel = viewModel,
+            notificationStatus = notificationStatus,
+            onDismiss = { showSettingsDialog = false }
+        )
+    }
+}
+
+/**
+ * Диалог настроек уведомлений
+ */
+@Composable
+private fun NotificationSettingsDialog(
+    viewModel: TodoistViewModel,
+    notificationStatus: com.example.claudechat.data.mcp.models.NotificationStatus?,
+    onDismiss: () -> Unit
+) {
+    var intervalInput by remember {
+        mutableStateOf(notificationStatus?.intervalSeconds?.toString() ?: "60")
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Управление уведомлениями")
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Текущий статус
+                notificationStatus?.let { status ->
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (status.enabled) {
+                                Color(0xFF4CAF50).copy(alpha = 0.1f)
+                            } else {
+                                Color(0xFFFF9800).copy(alpha = 0.1f)
+                            }
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (status.enabled) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = if (status.enabled) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = if (status.enabled) "Уведомления включены" else "Уведомления отключены",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (status.enabled) {
+                                    Text(
+                                        text = "Интервал: ${status.intervalSeconds} секунд",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
                 Divider()
 
                 // Настройка интервала
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = intervalInput,
-                        onValueChange = { intervalInput = it },
-                        label = { Text("Интервал (сек)") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
+                Text(
+                    text = "Интервал уведомлений",
+                    style = MaterialTheme.typography.labelLarge
+                )
 
-                    Button(
-                        onClick = {
-                            val interval = intervalInput.toIntOrNull() ?: 60
-                            viewModel.setNotificationInterval(interval)
-                        }
-                    ) {
-                        Icon(Icons.Default.Settings, null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Установить")
-                    }
-                }
+                OutlinedTextField(
+                    value = intervalInput,
+                    onValueChange = { intervalInput = it },
+                    label = { Text("Интервал (секунды)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    supportingText = { Text("Минимум: 1 секунда") }
+                )
 
                 // Кнопки управления
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
                         onClick = {
                             val interval = intervalInput.toIntOrNull() ?: 60
                             viewModel.enableNotifications(interval)
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = notificationStatus?.enabled != true,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF4CAF50)
                         )
                     ) {
                         Icon(Icons.Default.Notifications, null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Включить")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Включить уведомления")
                     }
 
-                    Button(
+                    OutlinedButton(
+                        onClick = {
+                            val interval = intervalInput.toIntOrNull() ?: 60
+                            viewModel.setNotificationInterval(interval)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = notificationStatus?.enabled == true
+                    ) {
+                        Icon(Icons.Default.Settings, null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Изменить интервал")
+                    }
+
+                    OutlinedButton(
                         onClick = { viewModel.disableNotifications() },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFFF5722)
-                        )
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = notificationStatus?.enabled == true
                     ) {
                         Icon(Icons.Default.Close, null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Выключить")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Выключить уведомления")
                     }
                 }
-
-                // Кнопка обновления статуса и очистки
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { viewModel.refreshNotificationStatus() },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Refresh, null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Обновить статус")
-                    }
-
-                    OutlinedButton(
-                        onClick = { viewModel.clearNotifications() },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Delete, null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Очистить список")
-                    }
-                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                viewModel.refreshNotificationStatus()
+                onDismiss()
+            }) {
+                Text("Закрыть")
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Список уведомлений
-        Text(
-            text = "История уведомлений (${notifications.size})",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (notifications.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.Default.Info,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "Нет уведомлений",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Включите уведомления для получения",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(notifications.reversed()) { notification ->
-                    NotificationCard(notification)
-                }
-            }
-        }
-    }
+    )
 }
 
 /**
