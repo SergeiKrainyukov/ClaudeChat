@@ -372,10 +372,10 @@ class McpRepository(
     /**
      * Включает периодические уведомления
      */
-    suspend fun enableNotifications(intervalSeconds: Int = 60): Boolean {
+    suspend fun enableNotifications(intervalSeconds: Int = 60, maxTasks: Int = 20): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                mcpClient.enableNotifications(intervalSeconds)
+                mcpClient.enableNotifications(intervalSeconds, maxTasks)
             } catch (e: Exception) {
                 logError("Failed to enable notifications: ${e.message}", e)
                 false
@@ -406,6 +406,20 @@ class McpRepository(
                 mcpClient.setNotificationInterval(intervalSeconds)
             } catch (e: Exception) {
                 logError("Failed to set notification interval: ${e.message}", e)
+                false
+            }
+        }
+    }
+
+    /**
+     * Изменяет максимальное количество задач в уведомлении
+     */
+    suspend fun setMaxTasks(maxTasks: Int): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                mcpClient.setMaxTasks(maxTasks)
+            } catch (e: Exception) {
+                logError("Failed to set max tasks: ${e.message}", e)
                 false
             }
         }

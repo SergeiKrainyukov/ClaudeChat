@@ -651,12 +651,14 @@ class McpClient(
      * Включает периодические уведомления о задачах
      *
      * @param intervalSeconds Интервал отправки в секундах (минимум 1, по умолчанию 60)
+     * @param maxTasks Максимальное количество задач в уведомлении (минимум 1, по умолчанию 20)
      * @return true если уведомления успешно включены, false в случае ошибки
      */
-    suspend fun enableNotifications(intervalSeconds: Int = 60): Boolean {
+    suspend fun enableNotifications(intervalSeconds: Int = 60, maxTasks: Int = 20): Boolean {
         return try {
             val params = buildJsonObject {
                 put("intervalSeconds", intervalSeconds)
+                put("maxTasks", maxTasks)
             }
 
             val result = sendRequest("notifications/enable", params)
@@ -713,6 +715,31 @@ class McpClient(
             }
         } catch (e: Exception) {
             logError("Failed to set notification interval: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * Изменяет максимальное количество задач в уведомлении (работает даже если уведомления уже включены)
+     *
+     * @param maxTasks Максимальное количество задач (минимум 1)
+     * @return true если значение успешно изменено, false в случае ошибки
+     */
+    suspend fun setMaxTasks(maxTasks: Int): Boolean {
+        return try {
+            val params = buildJsonObject {
+                put("maxTasks", maxTasks)
+            }
+
+            val result = sendRequest("notifications/setMaxTasks", params)
+            if (result.isSuccess) {
+                val success = result.getOrNull()?.jsonObject?.get("success")?.jsonPrimitive?.boolean
+                success ?: false
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            logError("Failed to set max tasks: ${e.message}", e)
             false
         }
     }

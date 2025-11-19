@@ -393,6 +393,9 @@ private fun NotificationSettingsDialog(
     var intervalInput by remember {
         mutableStateOf(notificationStatus?.intervalSeconds?.toString() ?: "60")
     }
+    var maxTasksInput by remember {
+        mutableStateOf(notificationStatus?.maxTasks?.toString() ?: "20")
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -435,7 +438,7 @@ private fun NotificationSettingsDialog(
                                 )
                                 if (status.enabled) {
                                     Text(
-                                        text = "Интервал: ${status.intervalSeconds} секунд",
+                                        text = "Интервал: ${status.intervalSeconds}с, Макс. задач: ${status.maxTasks}",
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
@@ -446,9 +449,9 @@ private fun NotificationSettingsDialog(
 
                 Divider()
 
-                // Настройка интервала
+                // Настройка параметров
                 Text(
-                    text = "Интервал уведомлений",
+                    text = "Настройки уведомлений",
                     style = MaterialTheme.typography.labelLarge
                 )
 
@@ -461,6 +464,15 @@ private fun NotificationSettingsDialog(
                     supportingText = { Text("Минимум: 1 секунда") }
                 )
 
+                OutlinedTextField(
+                    value = maxTasksInput,
+                    onValueChange = { maxTasksInput = it },
+                    label = { Text("Макс. задач") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    supportingText = { Text("Количество задач в уведомлении (мин: 1)") }
+                )
+
                 // Кнопки управления
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -468,7 +480,8 @@ private fun NotificationSettingsDialog(
                     Button(
                         onClick = {
                             val interval = intervalInput.toIntOrNull() ?: 60
-                            viewModel.enableNotifications(interval)
+                            val maxTasks = maxTasksInput.toIntOrNull() ?: 20
+                            viewModel.enableNotifications(interval, maxTasks)
                         },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = notificationStatus?.enabled != true,
@@ -492,6 +505,19 @@ private fun NotificationSettingsDialog(
                         Icon(Icons.Default.Settings, null)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Изменить интервал")
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            val maxTasks = maxTasksInput.toIntOrNull() ?: 20
+                            viewModel.setMaxTasks(maxTasks)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = notificationStatus?.enabled == true
+                    ) {
+                        Icon(Icons.Default.Settings, null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Изменить макс. задач")
                     }
 
                     OutlinedButton(

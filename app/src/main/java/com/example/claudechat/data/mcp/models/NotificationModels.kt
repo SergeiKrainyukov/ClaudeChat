@@ -9,6 +9,7 @@ import kotlinx.serialization.Serializable
 data class NotificationData(
     val message: String,
     val taskCount: Int,
+    val displayedTasks: Int,
     val timestamp: Long
 )
 
@@ -18,7 +19,8 @@ data class NotificationData(
 @Serializable
 data class NotificationStatus(
     val enabled: Boolean,
-    val intervalSeconds: Int
+    val intervalSeconds: Int,
+    val maxTasks: Int
 )
 
 /**

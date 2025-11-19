@@ -474,12 +474,12 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
     /**
      * Включает уведомления
      */
-    fun enableNotifications(intervalSeconds: Int = 60) {
+    fun enableNotifications(intervalSeconds: Int = 60, maxTasks: Int = 20) {
         viewModelScope.launch {
             _isLoading.value = true
-            val success = mcpRepository.enableNotifications(intervalSeconds)
+            val success = mcpRepository.enableNotifications(intervalSeconds, maxTasks)
             if (success) {
-                _successMessage.value = "Уведомления включены (интервал: ${intervalSeconds}с)"
+                _successMessage.value = "Уведомления включены (интервал: ${intervalSeconds}с, макс. задач: $maxTasks)"
                 // Обновляем статус
                 refreshNotificationStatus()
             } else {
@@ -520,6 +520,24 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
                 refreshNotificationStatus()
             } else {
                 _errorMessage.value = "Не удалось изменить интервал"
+            }
+            _isLoading.value = false
+        }
+    }
+
+    /**
+     * Изменяет максимальное количество задач в уведомлении
+     */
+    fun setMaxTasks(maxTasks: Int) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val success = mcpRepository.setMaxTasks(maxTasks)
+            if (success) {
+                _successMessage.value = "Макс. задач изменено: $maxTasks"
+                // Обновляем статус
+                refreshNotificationStatus()
+            } else {
+                _errorMessage.value = "Не удалось изменить макс. задач"
             }
             _isLoading.value = false
         }
