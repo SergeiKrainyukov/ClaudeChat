@@ -36,6 +36,8 @@ fun TodoistScreen(
     val tasks by viewModel.tasks.observeAsState(emptyList())
     val projects by viewModel.projects.observeAsState(emptyList())
     val chatMessages by viewModel.chatMessages.observeAsState(emptyList())
+    val notifications by viewModel.notifications.observeAsState(emptyList())
+    val notificationStatus by viewModel.notificationStatus.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.observeAsState()
     val successMessage by viewModel.successMessage.observeAsState()
@@ -76,11 +78,29 @@ fun TodoistScreen(
                     }
                 },
                 actions = {
-                    // Индикатор подключения
-                    McpStatusIndicator(
-                        connectionState = mcpConnectionState,
-                        onReconnect = { viewModel.reconnect() }
-                    )
+                    // Компактный индикатор подключения (только иконка)
+                    IconButton(onClick = { viewModel.reconnect() }) {
+                        Icon(
+                            imageVector = when (mcpConnectionState) {
+                                is McpConnectionState.Connected -> Icons.Default.CheckCircle
+                                is McpConnectionState.Connecting -> Icons.Default.Info
+                                is McpConnectionState.Disconnected -> Icons.Default.Warning
+                                is McpConnectionState.Error -> Icons.Default.Warning
+                            },
+                            contentDescription = when (mcpConnectionState) {
+                                is McpConnectionState.Connected -> "Todoist подключен"
+                                is McpConnectionState.Connecting -> "Подключение..."
+                                is McpConnectionState.Disconnected -> "Todoist отключен"
+                                is McpConnectionState.Error -> "Ошибка подключения"
+                            },
+                            tint = when (mcpConnectionState) {
+                                is McpConnectionState.Connected -> Color.White
+                                is McpConnectionState.Connecting -> Color.White
+                                is McpConnectionState.Disconnected -> Color.White.copy(alpha = 0.7f)
+                                is McpConnectionState.Error -> Color.White.copy(alpha = 0.7f)
+                            }
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -106,6 +126,12 @@ fun TodoistScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            // Полный индикатор подключения с текстом
+            McpStatusIndicator(
+                connectionState = mcpConnectionState,
+                onReconnect = { viewModel.reconnect() }
+            )
+
             // Вкладки
             TabRow(selectedTabIndex = selectedTab) {
                 Tab(
@@ -122,6 +148,14 @@ fun TodoistScreen(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
                     text = { Text("Чат") }
+                )
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = {
+                        selectedTab = 3
+                        viewModel.refreshNotificationStatus()
+                    },
+                    text = { Text("Уведомления") }
                 )
             }
 
@@ -141,6 +175,11 @@ fun TodoistScreen(
                 2 -> ChatTab(
                     viewModel = viewModel,
                     chatMessages = chatMessages
+                )
+                3 -> NotificationsTab(
+                    viewModel = viewModel,
+                    notifications = notifications,
+                    notificationStatus = notificationStatus
                 )
             }
         }
@@ -519,6 +558,257 @@ private fun ChatMessageBubble(message: TodoistChatMessage) {
                 } else {
                     MaterialTheme.colorScheme.onSecondaryContainer
                 }
+            )
+        }
+    }
+}
+
+/**
+ * Вкладка уведомлений
+ */
+@Composable
+private fun NotificationsTab(
+    viewModel: TodoistViewModel,
+    notifications: List<com.example.claudechat.viewmodel.TaskNotification>,
+    notificationStatus: com.example.claudechat.data.mcp.models.NotificationStatus?
+) {
+    var intervalInput by remember { mutableStateOf("60") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Панель управления уведомлениями
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Управление уведомлениями",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                // Статус
+                notificationStatus?.let { status ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (status.enabled) Icons.Default.CheckCircle else Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = if (status.enabled) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (status.enabled) {
+                                "Уведомления включены (интервал: ${status.intervalSeconds}с)"
+                            } else {
+                                "Уведомления отключены"
+                            },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+
+                Divider()
+
+                // Настройка интервала
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = intervalInput,
+                        onValueChange = { intervalInput = it },
+                        label = { Text("Интервал (сек)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+
+                    Button(
+                        onClick = {
+                            val interval = intervalInput.toIntOrNull() ?: 60
+                            viewModel.setNotificationInterval(interval)
+                        }
+                    ) {
+                        Icon(Icons.Default.Settings, null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Установить")
+                    }
+                }
+
+                // Кнопки управления
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            val interval = intervalInput.toIntOrNull() ?: 60
+                            viewModel.enableNotifications(interval)
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4CAF50)
+                        )
+                    ) {
+                        Icon(Icons.Default.Notifications, null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Включить")
+                    }
+
+                    Button(
+                        onClick = { viewModel.disableNotifications() },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF5722)
+                        )
+                    ) {
+                        Icon(Icons.Default.Close, null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Выключить")
+                    }
+                }
+
+                // Кнопка обновления статуса и очистки
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { viewModel.refreshNotificationStatus() },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Refresh, null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Обновить статус")
+                    }
+
+                    OutlinedButton(
+                        onClick = { viewModel.clearNotifications() },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Delete, null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Очистить список")
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Список уведомлений
+        Text(
+            text = "История уведомлений (${notifications.size})",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (notifications.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Нет уведомлений",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Включите уведомления для получения",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(notifications.reversed()) { notification ->
+                    NotificationCard(notification)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Карточка уведомления
+ */
+@Composable
+private fun NotificationCard(
+    notification: com.example.claudechat.viewmodel.TaskNotification
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Notifications,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Задачи: ${notification.taskCount}",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Text(
+                    text = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                        .format(java.util.Date(notification.timestamp)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = notification.message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
             )
         }
     }

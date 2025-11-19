@@ -51,6 +51,10 @@ class McpClient(
     private val pendingRequests = ConcurrentHashMap<String, CompletableDeferred<JsonElement>>()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    // Callback для обработки входящих уведомлений
+    @Volatile
+    private var notificationCallback: ((NotificationData) -> Unit)? = null
+
     // Флаг инициализации MCP протокола
     @Volatile
     private var isInitialized = false
@@ -292,32 +296,78 @@ class McpClient(
      */
     private fun handleMessage(text: String) {
         try {
-            val response = json.decodeFromString<McpResponse>(text)
+            // Парсим как JsonObject чтобы проверить наличие полей
+            val jsonObject = json.parseToJsonElement(text).jsonObject
 
-            val deferred = pendingRequests.remove(response.id)
-            if (deferred == null) {
-                logError("No pending request found for id: ${response.id}", null)
+            // Проверяем наличие поля id
+            val id = jsonObject["id"]?.jsonPrimitive?.contentOrNull
+            val method = jsonObject["method"]?.jsonPrimitive?.contentOrNull
+
+            // Если id == null и есть method - это уведомление
+            if (id == null && method != null) {
+                handleNotification(method, jsonObject)
                 return
             }
 
-            when {
-                response.error != null -> {
-                    logError("MCP error: ${response.error.message}", null)
-                    deferred.completeExceptionally(
-                        Exception("MCP error [${response.error.code}]: ${response.error.message}")
-                    )
+            // Если есть id - это обычный ответ на запрос
+            if (id != null) {
+                val response = json.decodeFromString<McpResponse>(text)
+
+                val deferred = pendingRequests.remove(response.id)
+                if (deferred == null) {
+                    logError("No pending request found for id: ${response.id}", null)
+                    return
                 }
-                response.result != null -> {
-                    logDebug("Request ${response.id} completed successfully")
-                    deferred.complete(response.result)
-                }
-                else -> {
-                    logError("Invalid response: no result or error", null)
-                    deferred.completeExceptionally(Exception("Invalid response"))
+
+                when {
+                    response.error != null -> {
+                        logError("MCP error: ${response.error.message}", null)
+                        deferred.completeExceptionally(
+                            Exception("MCP error [${response.error.code}]: ${response.error.message}")
+                        )
+                    }
+                    response.result != null -> {
+                        logDebug("Request ${response.id} completed successfully")
+                        deferred.complete(response.result)
+                    }
+                    else -> {
+                        logError("Invalid response: no result or error", null)
+                        deferred.completeExceptionally(Exception("Invalid response"))
+                    }
                 }
             }
         } catch (e: Exception) {
-            logError("Failed to parse response: ${e.message}", e)
+            logError("Failed to parse message: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Обрабатывает входящее уведомление от сервера
+     */
+    private fun handleNotification(method: String, jsonObject: JsonObject) {
+        try {
+            logDebug("Received notification: method=$method")
+
+            when (method) {
+                "notifications/tasks" -> {
+                    // Извлекаем params
+                    val params = jsonObject["params"]?.jsonObject
+                    if (params != null) {
+                        val notificationData = json.decodeFromJsonElement<NotificationData>(params)
+                        logDebug("Task notification: ${notificationData.taskCount} tasks")
+
+                        // Вызываем callback если установлен
+                        notificationCallback?.invoke(notificationData)
+                    } else {
+                        logError("Notification params is null", null)
+                    }
+                }
+                else -> {
+                    logDebug("Unknown notification method: $method")
+                }
+            }
+        } catch (e: Exception) {
+            logError("Failed to handle notification: ${e.message}", e)
         }
     }
 
@@ -595,7 +645,112 @@ class McpClient(
             .map { true }
     }
 
+    // ==================== Notification Management Methods ====================
+
+    /**
+     * Включает периодические уведомления о задачах
+     *
+     * @param intervalSeconds Интервал отправки в секундах (минимум 1, по умолчанию 60)
+     * @return true если уведомления успешно включены, false в случае ошибки
+     */
+    suspend fun enableNotifications(intervalSeconds: Int = 60): Boolean {
+        return try {
+            val params = buildJsonObject {
+                put("intervalSeconds", intervalSeconds)
+            }
+
+            val result = sendRequest("notifications/enable", params)
+            if (result.isSuccess) {
+                val success = result.getOrNull()?.jsonObject?.get("success")?.jsonPrimitive?.boolean
+                success ?: false
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            logError("Failed to enable notifications: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * Отключает периодические уведомления о задачах
+     *
+     * @return true если уведомления успешно отключены, false в случае ошибки
+     */
+    suspend fun disableNotifications(): Boolean {
+        return try {
+            val result = sendRequest("notifications/disable", null)
+            if (result.isSuccess) {
+                val success = result.getOrNull()?.jsonObject?.get("success")?.jsonPrimitive?.boolean
+                success ?: false
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            logError("Failed to disable notifications: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * Изменяет интервал уведомлений (работает даже если уведомления уже включены)
+     *
+     * @param intervalSeconds Новый интервал в секундах (минимум 1)
+     * @return true если интервал успешно изменен, false в случае ошибки
+     */
+    suspend fun setNotificationInterval(intervalSeconds: Int): Boolean {
+        return try {
+            val params = buildJsonObject {
+                put("intervalSeconds", intervalSeconds)
+            }
+
+            val result = sendRequest("notifications/setInterval", params)
+            if (result.isSuccess) {
+                val success = result.getOrNull()?.jsonObject?.get("success")?.jsonPrimitive?.boolean
+                success ?: false
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            logError("Failed to set notification interval: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * Получает текущий статус уведомлений
+     *
+     * @return NotificationStatus с информацией о статусе или null в случае ошибки
+     */
+    suspend fun getNotificationStatus(): NotificationStatus? {
+        return try {
+            val result = sendRequest("notifications/getStatus", null)
+            if (result.isSuccess) {
+                val statusJson = result.getOrNull()
+                if (statusJson != null) {
+                    json.decodeFromJsonElement<NotificationStatus>(statusJson)
+                } else {
+                    null
+                }
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            logError("Failed to get notification status: ${e.message}", e)
+            null
+        }
+    }
+
     // ==================== Utility Methods ====================
+
+    /**
+     * Устанавливает callback для обработки уведомлений
+     * Должен быть вызван ПЕРЕД подключением к серверу
+     */
+    fun setNotificationCallback(callback: ((NotificationData) -> Unit)?) {
+        notificationCallback = callback
+        logDebug("Notification callback ${if (callback != null) "set" else "cleared"}")
+    }
 
     /**
      * Проверяет, подключен ли клиент

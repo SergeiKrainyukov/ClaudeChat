@@ -360,6 +360,71 @@ class McpRepository(
         }
     }
 
+    // ==================== Notification Management ====================
+
+    /**
+     * Устанавливает callback для обработки уведомлений
+     */
+    fun setNotificationCallback(callback: ((NotificationData) -> Unit)?) {
+        mcpClient.setNotificationCallback(callback)
+    }
+
+    /**
+     * Включает периодические уведомления
+     */
+    suspend fun enableNotifications(intervalSeconds: Int = 60): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                mcpClient.enableNotifications(intervalSeconds)
+            } catch (e: Exception) {
+                logError("Failed to enable notifications: ${e.message}", e)
+                false
+            }
+        }
+    }
+
+    /**
+     * Отключает уведомления
+     */
+    suspend fun disableNotifications(): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                mcpClient.disableNotifications()
+            } catch (e: Exception) {
+                logError("Failed to disable notifications: ${e.message}", e)
+                false
+            }
+        }
+    }
+
+    /**
+     * Изменяет интервал уведомлений
+     */
+    suspend fun setNotificationInterval(intervalSeconds: Int): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                mcpClient.setNotificationInterval(intervalSeconds)
+            } catch (e: Exception) {
+                logError("Failed to set notification interval: ${e.message}", e)
+                false
+            }
+        }
+    }
+
+    /**
+     * Получает текущий статус уведомлений
+     */
+    suspend fun getNotificationStatus(): NotificationStatus? {
+        return withContext(Dispatchers.IO) {
+            try {
+                mcpClient.getNotificationStatus()
+            } catch (e: Exception) {
+                logError("Failed to get notification status: ${e.message}", e)
+                null
+            }
+        }
+    }
+
     // ==================== Utility Methods ====================
 
     /**

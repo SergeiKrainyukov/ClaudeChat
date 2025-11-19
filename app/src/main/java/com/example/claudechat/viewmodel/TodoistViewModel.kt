@@ -23,6 +23,15 @@ data class TodoistChatMessage(
 )
 
 /**
+ * Уведомление о задачах
+ */
+data class TaskNotification(
+    val message: String,
+    val taskCount: Int,
+    val timestamp: Long
+)
+
+/**
  * ViewModel для управления Todoist через MCP
  */
 class TodoistViewModel(application: Application) : AndroidViewModel(application) {
@@ -62,7 +71,27 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
     private val _chatMessages = MutableLiveData<List<TodoistChatMessage>>(emptyList())
     val chatMessages: LiveData<List<TodoistChatMessage>> = _chatMessages
 
+    // Список уведомлений
+    private val _notifications = MutableLiveData<List<TaskNotification>>(emptyList())
+    val notifications: LiveData<List<TaskNotification>> = _notifications
+
+    // Статус уведомлений
+    private val _notificationStatus = MutableStateFlow<NotificationStatus?>(null)
+    val notificationStatus: StateFlow<NotificationStatus?> = _notificationStatus.asStateFlow()
+
     init {
+        // Настраиваем callback для получения уведомлений
+        mcpRepository.setNotificationCallback { notificationData ->
+            // Добавляем уведомление в список
+            val notification = TaskNotification(
+                message = notificationData.message,
+                taskCount = notificationData.taskCount,
+                timestamp = notificationData.timestamp
+            )
+            val currentNotifications = _notifications.value ?: emptyList()
+            _notifications.postValue(currentNotifications + notification)
+        }
+
         // Подключаемся к MCP серверу при создании ViewModel
         mcpRepository.connect()
 
@@ -422,6 +451,79 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
     private fun addChatMessage(message: TodoistChatMessage) {
         val currentMessages = _chatMessages.value ?: emptyList()
         _chatMessages.value = currentMessages + message
+    }
+
+    // ==================== Notification Methods ====================
+
+    /**
+     * Включает уведомления
+     */
+    fun enableNotifications(intervalSeconds: Int = 60) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val success = mcpRepository.enableNotifications(intervalSeconds)
+            if (success) {
+                _successMessage.value = "Уведомления включены (интервал: ${intervalSeconds}с)"
+                // Обновляем статус
+                refreshNotificationStatus()
+            } else {
+                _errorMessage.value = "Не удалось включить уведомления"
+            }
+            _isLoading.value = false
+        }
+    }
+
+    /**
+     * Отключает уведомления
+     */
+    fun disableNotifications() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val success = mcpRepository.disableNotifications()
+            if (success) {
+                _successMessage.value = "Уведомления отключены"
+                // Обновляем статус
+                refreshNotificationStatus()
+            } else {
+                _errorMessage.value = "Не удалось отключить уведомления"
+            }
+            _isLoading.value = false
+        }
+    }
+
+    /**
+     * Изменяет интервал уведомлений
+     */
+    fun setNotificationInterval(intervalSeconds: Int) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val success = mcpRepository.setNotificationInterval(intervalSeconds)
+            if (success) {
+                _successMessage.value = "Интервал изменен: ${intervalSeconds}с"
+                // Обновляем статус
+                refreshNotificationStatus()
+            } else {
+                _errorMessage.value = "Не удалось изменить интервал"
+            }
+            _isLoading.value = false
+        }
+    }
+
+    /**
+     * Обновляет статус уведомлений
+     */
+    fun refreshNotificationStatus() {
+        viewModelScope.launch {
+            val status = mcpRepository.getNotificationStatus()
+            _notificationStatus.value = status
+        }
+    }
+
+    /**
+     * Очищает список уведомлений
+     */
+    fun clearNotifications() {
+        _notifications.value = emptyList()
     }
 
     override fun onCleared() {
