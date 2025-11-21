@@ -96,4 +96,7 @@ dependencies {
 
     // Hugging Face API (используем те же Retrofit и OkHttp)
     // Дополнительные зависимости не требуются, так как используем уже добавленные
+
+    // Android PDF generation (встроенная библиотека, явного импорта не требуется)
+    // Используется android.graphics.pdf.PdfDocument
 }

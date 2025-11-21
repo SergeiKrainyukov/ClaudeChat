@@ -13,5 +13,11 @@ data class NotificationEntity(
 
     val message: String,
     val taskCount: Int,
-    val timestamp: Long
+    val timestamp: Long,
+
+    // Путь к PDF файлу с планом (null если еще не сгенерирован)
+    val pdfPath: String? = null,
+
+    // Флаг генерации плана
+    val isGeneratingPlan: Boolean = false
 )

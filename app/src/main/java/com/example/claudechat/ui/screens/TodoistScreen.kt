@@ -1,6 +1,9 @@
 package com.example.claudechat.ui.screens
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,14 +17,17 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.example.claudechat.data.mcp.models.McpConnectionState
 import com.example.claudechat.ui.components.McpStatusIndicator
 import com.example.claudechat.ui.components.TodoistCard
 import com.example.claudechat.viewmodel.TodoistChatMessage
 import com.example.claudechat.viewmodel.TodoistViewModel
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * Экран для работы с Todoist через MCP
@@ -550,6 +556,8 @@ private fun NotificationSettingsDialog(
 private fun NotificationCard(
     notification: com.example.claudechat.viewmodel.TaskNotification
 ) {
+    val context = LocalContext.current
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -595,6 +603,121 @@ private fun NotificationCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
+
+            // Индикатор загрузки или кнопка открытия PDF
+            Spacer(modifier = Modifier.height(12.dp))
+
+            when {
+                notification.isGeneratingPlan -> {
+                    // Показываем индикатор загрузки
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Составляем план реализации задач...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                notification.pdfPath != null -> {
+                    // Показываем кнопки для работы с PDF
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { openPdf(context, notification.pdfPath) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Открыть план")
+                        }
+
+                        OutlinedButton(
+                            onClick = { sharePdf(context, notification.pdfPath) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                Icons.Default.Share,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Поделиться")
+                        }
+                    }
+                }
+            }
         }
+    }
+}
+
+/**
+ * Открывает PDF файл
+ */
+private fun openPdf(context: Context, pdfPath: String) {
+    try {
+        val file = File(pdfPath)
+        if (!file.exists()) {
+            return
+        }
+
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/pdf")
+            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+
+        context.startActivity(Intent.createChooser(intent, "Открыть план"))
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}
+
+/**
+ * Делится PDF файлом
+ */
+private fun sharePdf(context: Context, pdfPath: String) {
+    try {
+        val file = File(pdfPath)
+        if (!file.exists()) {
+            return
+        }
+
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, "План реализации задач")
+            putExtra(Intent.EXTRA_TEXT, "План реализации задач, созданный Claude AI")
+            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+        }
+
+        context.startActivity(Intent.createChooser(intent, "Поделиться планом"))
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
 }

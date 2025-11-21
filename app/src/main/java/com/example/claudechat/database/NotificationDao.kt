@@ -3,6 +3,7 @@ package com.example.claudechat.database
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -27,7 +28,19 @@ interface NotificationDao {
      * Вставить новое уведомление
      */
     @Insert
-    suspend fun insert(notification: NotificationEntity)
+    suspend fun insert(notification: NotificationEntity): Long
+
+    /**
+     * Обновить уведомление
+     */
+    @Update
+    suspend fun update(notification: NotificationEntity)
+
+    /**
+     * Получить уведомление по ID
+     */
+    @Query("SELECT * FROM notifications WHERE id = :id")
+    suspend fun getById(id: Long): NotificationEntity?
 
     /**
      * Удалить все уведомления

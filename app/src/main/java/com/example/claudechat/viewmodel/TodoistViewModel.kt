@@ -9,6 +9,8 @@ import com.example.claudechat.data.mcp.McpRepository
 import com.example.claudechat.data.mcp.models.*
 import com.example.claudechat.database.ChatDatabase
 import com.example.claudechat.database.NotificationEntity
+import com.example.claudechat.services.PdfGeneratorService
+import com.example.claudechat.services.TaskPlanningService
 import com.example.claudechat.utils.TodoistAiInterpreter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,9 +32,12 @@ data class TodoistChatMessage(
  * Уведомление о задачах
  */
 data class TaskNotification(
+    val id: Long = 0,
     val message: String,
     val taskCount: Int,
-    val timestamp: Long
+    val timestamp: Long,
+    val pdfPath: String? = null,
+    val isGeneratingPlan: Boolean = false
 )
 
 /**
@@ -47,6 +52,10 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
 
     // AI интерпретатор для понимания естественного языка
     private val aiInterpreter = TodoistAiInterpreter(application.applicationContext)
+
+    // Сервисы для генерации планов и PDF
+    private val taskPlanningService = TaskPlanningService()
+    private val pdfGeneratorService = PdfGeneratorService(application.applicationContext)
 
     // База данных для сохранения уведомлений
     private val database = ChatDatabase.getDatabase(application.applicationContext)
@@ -93,18 +102,26 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
 
         // Настраиваем callback для получения уведомлений
         mcpRepository.setNotificationCallback { notificationData ->
-            // Добавляем уведомление в список
-            val notification = TaskNotification(
-                message = notificationData.message,
-                taskCount = notificationData.taskCount,
-                timestamp = notificationData.timestamp
-            )
-            val currentNotifications = _notifications.value ?: emptyList()
-            _notifications.postValue(currentNotifications + notification)
-
-            // Сохраняем уведомление в БД
+            // Сохраняем уведомление в БД и запускаем генерацию плана
             viewModelScope.launch {
-                saveNotificationToDatabase(notification)
+                // Создаем уведомление с флагом генерации плана
+                val notification = TaskNotification(
+                    message = notificationData.message,
+                    taskCount = notificationData.taskCount,
+                    timestamp = notificationData.timestamp,
+                    isGeneratingPlan = true
+                )
+
+                // Сначала сохраняем в БД и получаем ID
+                val notificationId = saveNotificationToDatabase(notification)
+
+                // Добавляем уведомление в список с правильным ID
+                val notificationWithId = notification.copy(id = notificationId)
+                val currentNotifications = _notifications.value ?: emptyList()
+                _notifications.postValue(currentNotifications + notificationWithId)
+
+                // Запускаем генерацию плана
+                generatePlanForNotification(notificationId, notificationData.message)
             }
         }
 
@@ -118,44 +135,6 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
                 isUser = false
             )
         )
-    }
-
-    /**
-     * Создает новую задачу
-     */
-    fun createTask(
-        content: String,
-        description: String? = null,
-        projectId: String? = null,
-        dueString: String? = null,
-        priority: Int? = null
-    ) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _errorMessage.value = null
-
-            val action = TodoistAction.CreateTask(
-                content = content,
-                description = description,
-                projectId = projectId,
-                dueString = dueString,
-                priority = priority
-            )
-
-            when (val result = mcpRepository.executeAction(action)) {
-                is McpResult.Success -> {
-                    _successMessage.value = "Задача создана: $content"
-                    // Обновляем список задач
-                    listTasks()
-                }
-                is McpResult.Error -> {
-                    _errorMessage.value = "Ошибка создания задачи: ${result.message}"
-                }
-                is McpResult.Loading -> {}
-            }
-
-            _isLoading.value = false
-        }
     }
 
     /**
@@ -576,9 +555,12 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
 
             val notifications = entities.map { entity: NotificationEntity ->
                 TaskNotification(
+                    id = entity.id,
                     message = entity.message,
                     taskCount = entity.taskCount,
-                    timestamp = entity.timestamp
+                    timestamp = entity.timestamp,
+                    pdfPath = entity.pdfPath,
+                    isGeneratingPlan = entity.isGeneratingPlan
                 )
             }
 
@@ -588,15 +570,97 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Сохраняет уведомление в базу данных
+     * @return ID созданного уведомления
      */
-    private suspend fun saveNotificationToDatabase(notification: TaskNotification) {
-        withContext<Unit>(Dispatchers.IO) {
+    private suspend fun saveNotificationToDatabase(notification: TaskNotification): Long {
+        return withContext(Dispatchers.IO) {
             val entity = NotificationEntity(
                 message = notification.message,
                 taskCount = notification.taskCount,
-                timestamp = notification.timestamp
+                timestamp = notification.timestamp,
+                pdfPath = notification.pdfPath,
+                isGeneratingPlan = notification.isGeneratingPlan
             )
             notificationDao.insert(entity)
+        }
+    }
+
+    /**
+     * Генерирует план реализации задач для уведомления
+     */
+    private suspend fun generatePlanForNotification(notificationId: Long, message: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                // Шаг 1: Генерируем план через Claude API
+                val planResult = taskPlanningService.generateTaskPlan(message)
+
+                planResult.fold(
+                    onSuccess = { planText ->
+                        // Шаг 2: Генерируем PDF из плана
+                        val fileName = "plan_${System.currentTimeMillis()}"
+                        val pdfResult = pdfGeneratorService.generatePdf(planText, fileName)
+
+                        pdfResult.fold(
+                            onSuccess = { pdfPath ->
+                                // Шаг 3: Обновляем уведомление в БД
+                                val entity = notificationDao.getById(notificationId)
+                                if (entity != null) {
+                                    val updatedEntity = entity.copy(
+                                        pdfPath = pdfPath,
+                                        isGeneratingPlan = false
+                                    )
+                                    notificationDao.update(updatedEntity)
+
+                                    // Обновляем UI
+                                    updateNotificationInList(notificationId, pdfPath, false)
+                                }
+                            },
+                            onFailure = { error ->
+                                // Ошибка генерации PDF
+                                markNotificationAsFailed(notificationId)
+                                _errorMessage.postValue("Ошибка генерации PDF: ${error.message}")
+                            }
+                        )
+                    },
+                    onFailure = { error ->
+                        // Ошибка генерации плана
+                        markNotificationAsFailed(notificationId)
+                        _errorMessage.postValue("Ошибка генерации плана: ${error.message}")
+                    }
+                )
+            } catch (e: Exception) {
+                markNotificationAsFailed(notificationId)
+                _errorMessage.postValue("Ошибка: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Обновляет уведомление в списке (для обновления UI)
+     */
+    private fun updateNotificationInList(notificationId: Long, pdfPath: String, isGeneratingPlan: Boolean) {
+        val currentNotifications = _notifications.value ?: emptyList()
+        val updatedNotifications = currentNotifications.map { notification ->
+            if (notification.id == notificationId) {
+                notification.copy(pdfPath = pdfPath, isGeneratingPlan = isGeneratingPlan)
+            } else {
+                notification
+            }
+        }
+        _notifications.postValue(updatedNotifications)
+    }
+
+    /**
+     * Отмечает уведомление как неудачное (сбрасывает флаг генерации)
+     */
+    private suspend fun markNotificationAsFailed(notificationId: Long) {
+        withContext(Dispatchers.IO) {
+            val entity = notificationDao.getById(notificationId)
+            if (entity != null) {
+                val updatedEntity = entity.copy(isGeneratingPlan = false)
+                notificationDao.update(updatedEntity)
+                updateNotificationInList(notificationId, "", false)
+            }
         }
     }
 
