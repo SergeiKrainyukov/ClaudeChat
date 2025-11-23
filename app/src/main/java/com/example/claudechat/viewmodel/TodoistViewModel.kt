@@ -9,6 +9,7 @@ import com.example.claudechat.data.mcp.McpRepository
 import com.example.claudechat.data.mcp.models.*
 import com.example.claudechat.database.ChatDatabase
 import com.example.claudechat.database.NotificationEntity
+import com.example.claudechat.services.LearningResourcesService
 import com.example.claudechat.services.PdfGeneratorService
 import com.example.claudechat.services.TaskPlanningService
 import com.example.claudechat.utils.TodoistAiInterpreter
@@ -56,6 +57,7 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
     // Сервисы для генерации планов и PDF
     private val taskPlanningService = TaskPlanningService()
     private val pdfGeneratorService = PdfGeneratorService(application.applicationContext)
+    private val learningResourcesService = LearningResourcesService()
 
     // База данных для сохранения уведомлений
     private val database = ChatDatabase.getDatabase(application.applicationContext)
@@ -596,29 +598,65 @@ class TodoistViewModel(application: Application) : AndroidViewModel(application)
 
                 planResult.fold(
                     onSuccess = { planText ->
-                        // Шаг 2: Генерируем PDF из плана
-                        val fileName = "plan_${System.currentTimeMillis()}"
-                        val pdfResult = pdfGeneratorService.generatePdf(planText, fileName)
+                        // Шаг 2: Получаем рекомендации по обучению на основе плана
+                        val recommendationsResult = learningResourcesService.getLearningRecommendations(planText)
 
-                        pdfResult.fold(
-                            onSuccess = { pdfPath ->
-                                // Шаг 3: Обновляем уведомление в БД
-                                val entity = notificationDao.getById(notificationId)
-                                if (entity != null) {
-                                    val updatedEntity = entity.copy(
-                                        pdfPath = pdfPath,
-                                        isGeneratingPlan = false
-                                    )
-                                    notificationDao.update(updatedEntity)
+                        recommendationsResult.fold(
+                            onSuccess = { recommendations ->
+                                // Шаг 3: Объединяем план с рекомендациями
+                                val fullText = planText + recommendations
 
-                                    // Обновляем UI
-                                    updateNotificationInList(notificationId, pdfPath, false)
-                                }
+                                // Шаг 4: Генерируем PDF из объединенного текста
+                                val fileName = "plan_${System.currentTimeMillis()}"
+                                val pdfResult = pdfGeneratorService.generatePdf(fullText, fileName)
+
+                                pdfResult.fold(
+                                    onSuccess = { pdfPath ->
+                                        // Шаг 5: Обновляем уведомление в БД
+                                        val entity = notificationDao.getById(notificationId)
+                                        if (entity != null) {
+                                            val updatedEntity = entity.copy(
+                                                pdfPath = pdfPath,
+                                                isGeneratingPlan = false
+                                            )
+                                            notificationDao.update(updatedEntity)
+
+                                            // Обновляем UI
+                                            updateNotificationInList(notificationId, pdfPath, false)
+                                        }
+                                    },
+                                    onFailure = { error ->
+                                        // Ошибка генерации PDF
+                                        markNotificationAsFailed(notificationId)
+                                        _errorMessage.postValue("Ошибка генерации PDF: ${error.message}")
+                                    }
+                                )
                             },
                             onFailure = { error ->
-                                // Ошибка генерации PDF
-                                markNotificationAsFailed(notificationId)
-                                _errorMessage.postValue("Ошибка генерации PDF: ${error.message}")
+                                // Если не удалось получить рекомендации, генерируем PDF только с планом
+                                // (не прерываем процесс)
+                                _errorMessage.postValue("Предупреждение: не удалось получить рекомендации (${error.message}), генерируем PDF только с планом")
+
+                                val fileName = "plan_${System.currentTimeMillis()}"
+                                val pdfResult = pdfGeneratorService.generatePdf(planText, fileName)
+
+                                pdfResult.fold(
+                                    onSuccess = { pdfPath ->
+                                        val entity = notificationDao.getById(notificationId)
+                                        if (entity != null) {
+                                            val updatedEntity = entity.copy(
+                                                pdfPath = pdfPath,
+                                                isGeneratingPlan = false
+                                            )
+                                            notificationDao.update(updatedEntity)
+                                            updateNotificationInList(notificationId, pdfPath, false)
+                                        }
+                                    },
+                                    onFailure = { pdfError ->
+                                        markNotificationAsFailed(notificationId)
+                                        _errorMessage.postValue("Ошибка генерации PDF: ${pdfError.message}")
+                                    }
+                                )
                             }
                         )
                     },
