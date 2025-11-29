@@ -19,14 +19,13 @@ import com.example.claudechat.ui.screens.MainMenuScreen
 import com.example.claudechat.ui.screens.MemoryScreen
 import com.example.claudechat.ui.screens.ModelComparisonScreen
 import com.example.claudechat.ui.screens.TodoistScreen
+import com.example.claudechat.ui.screens.RagChatScreen
 import com.example.claudechat.viewmodel.ChatViewModel
 import com.example.claudechat.viewmodel.MemoryViewModel
 import com.example.claudechat.viewmodel.TodoistViewModel
+import com.example.claudechat.viewmodel.RagChatViewModel
 
 class MainActivity : ComponentActivity() {
-
-    private val viewModel: ChatViewModel by viewModels()
-    private val chatRepository by lazy { ChatRepository(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,10 +35,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AppNavigation(
-                        viewModel = viewModel,
-                        chatRepository = chatRepository
-                    )
+                    AppNavigation()
                 }
             }
         }
@@ -50,13 +46,12 @@ class MainActivity : ComponentActivity() {
  * Навигация между экранами
  */
 @Composable
-fun AppNavigation(
-    viewModel: ChatViewModel,
-    chatRepository: ChatRepository
-) {
+fun AppNavigation() {
     var currentScreen by remember { mutableStateOf(Screen.MAIN_MENU) }
     var initialMessage by remember { mutableStateOf<String?>(null) }
     var initialMessageIsSummary by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
 
     when (currentScreen) {
         Screen.MAIN_MENU -> {
@@ -66,26 +61,38 @@ fun AppNavigation(
                 onMultiAgentSelected = { currentScreen = Screen.MULTI_AGENT },
                 onModelComparisonSelected = { currentScreen = Screen.MODEL_COMPARISON },
                 onMemorySelected = { currentScreen = Screen.MEMORY },
-                onTodoistSelected = { currentScreen = Screen.TODOIST }
+                onTodoistSelected = { currentScreen = Screen.TODOIST },
+                onRagChatSelected = { currentScreen = Screen.RAG_CHAT }
             )
         }
         Screen.CHAT -> {
+            val chatViewModel: ChatViewModel = viewModel(
+                factory = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(
+                    context.applicationContext as android.app.Application
+                )
+            )
             ChatScreen(
-                viewModel = viewModel,
+                viewModel = chatViewModel,
                 onBack = { currentScreen = Screen.MAIN_MENU },
                 initialMessage = initialMessage,
                 initialMessageIsSummary = initialMessageIsSummary
             )
         }
         Screen.GOALS -> {
+            val chatRepository = remember { ChatRepository(context.applicationContext) }
             GoalScreen(
                 chatRepository = chatRepository,
                 onBack = { currentScreen = Screen.MAIN_MENU }
             )
         }
         Screen.MULTI_AGENT -> {
+            val chatViewModel: ChatViewModel = viewModel(
+                factory = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(
+                    context.applicationContext as android.app.Application
+                )
+            )
             ChatScreen(
-                viewModel = viewModel,
+                viewModel = chatViewModel,
                 onBack = { currentScreen = Screen.MAIN_MENU },
                 isMultiAgentMode = true
             )
@@ -108,7 +115,6 @@ fun AppNavigation(
             )
         }
         Screen.TODOIST -> {
-            val context = LocalContext.current
             val todoistViewModel: TodoistViewModel = viewModel(
                 factory = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(
                     context.applicationContext as android.app.Application
@@ -116,6 +122,17 @@ fun AppNavigation(
             )
             TodoistScreen(
                 viewModel = todoistViewModel,
+                onBack = { currentScreen = Screen.MAIN_MENU }
+            )
+        }
+        Screen.RAG_CHAT -> {
+            val ragChatViewModel: RagChatViewModel = viewModel(
+                factory = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(
+                    context.applicationContext as android.app.Application
+                )
+            )
+            RagChatScreen(
+                viewModel = ragChatViewModel,
                 onBack = { currentScreen = Screen.MAIN_MENU }
             )
         }
@@ -132,5 +149,6 @@ enum class Screen {
     MULTI_AGENT,
     MODEL_COMPARISON,
     MEMORY,
-    TODOIST
+    TODOIST,
+    RAG_CHAT
 }
