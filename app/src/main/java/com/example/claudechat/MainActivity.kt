@@ -20,10 +20,14 @@ import com.example.claudechat.ui.screens.MemoryScreen
 import com.example.claudechat.ui.screens.ModelComparisonScreen
 import com.example.claudechat.ui.screens.TodoistScreen
 import com.example.claudechat.ui.screens.RagChatScreen
+import com.example.claudechat.ui.screens.PersonalAssistantScreen
+import com.example.claudechat.ui.screens.UserProfileSettingsScreen
 import com.example.claudechat.viewmodel.ChatViewModel
 import com.example.claudechat.viewmodel.MemoryViewModel
 import com.example.claudechat.viewmodel.TodoistViewModel
 import com.example.claudechat.viewmodel.RagChatViewModel
+import com.example.claudechat.viewmodel.PersonalAssistantViewModel
+import com.example.claudechat.viewmodel.UserProfileViewModel
 
 class MainActivity : ComponentActivity() {
 
@@ -62,7 +66,8 @@ fun AppNavigation() {
                 onModelComparisonSelected = { currentScreen = Screen.MODEL_COMPARISON },
                 onMemorySelected = { currentScreen = Screen.MEMORY },
                 onTodoistSelected = { currentScreen = Screen.TODOIST },
-                onRagChatSelected = { currentScreen = Screen.RAG_CHAT }
+                onRagChatSelected = { currentScreen = Screen.RAG_CHAT },
+                onPersonalAssistantSelected = { currentScreen = Screen.PERSONAL_ASSISTANT }
             )
         }
         Screen.CHAT -> {
@@ -136,6 +141,29 @@ fun AppNavigation() {
                 onBack = { currentScreen = Screen.MAIN_MENU }
             )
         }
+        Screen.PERSONAL_ASSISTANT -> {
+            val personalAssistantViewModel: PersonalAssistantViewModel = viewModel(
+                factory = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(
+                    context.applicationContext as android.app.Application
+                )
+            )
+            PersonalAssistantScreen(
+                viewModel = personalAssistantViewModel,
+                onBack = { currentScreen = Screen.MAIN_MENU },
+                onSettingsClick = { currentScreen = Screen.USER_PROFILE_SETTINGS }
+            )
+        }
+        Screen.USER_PROFILE_SETTINGS -> {
+            val userProfileViewModel: UserProfileViewModel = viewModel(
+                factory = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(
+                    context.applicationContext as android.app.Application
+                )
+            )
+            UserProfileSettingsScreen(
+                viewModel = userProfileViewModel,
+                onBack = { currentScreen = Screen.PERSONAL_ASSISTANT }
+            )
+        }
     }
 }
 
@@ -150,5 +178,7 @@ enum class Screen {
     MODEL_COMPARISON,
     MEMORY,
     TODOIST,
-    RAG_CHAT
+    RAG_CHAT,
+    PERSONAL_ASSISTANT,
+    USER_PROFILE_SETTINGS
 }

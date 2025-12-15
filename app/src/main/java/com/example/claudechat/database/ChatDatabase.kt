@@ -9,14 +9,15 @@ import androidx.room.RoomDatabase
  * Room Database для хранения истории диалогов и суммаризаций
  */
 @Database(
-    entities = [ConversationEntity::class, NotificationEntity::class],
-    version = 3,
+    entities = [ConversationEntity::class, NotificationEntity::class, UserProfileEntity::class],
+    version = 4,
     exportSchema = false
 )
 abstract class ChatDatabase : RoomDatabase() {
 
     abstract fun conversationDao(): ConversationDao
     abstract fun notificationDao(): NotificationDao
+    abstract fun userProfileDao(): UserProfileDao
 
     companion object {
         @Volatile

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Face
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -34,7 +35,8 @@ fun MainMenuScreen(
     onModelComparisonSelected: () -> Unit,
     onMemorySelected: () -> Unit,
     onTodoistSelected: () -> Unit,
-    onRagChatSelected: () -> Unit
+    onRagChatSelected: () -> Unit,
+    onPersonalAssistantSelected: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -141,6 +143,16 @@ fun MainMenuScreen(
                 title = "RAG Чат с документами",
                 description = "Задавайте вопросы по загруженным документам с использованием семантического поиска",
                 onClick = onRagChatSelected
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Кнопка персонального ассистента
+            MenuCard(
+                icon = Icons.Default.Face,
+                title = "Личный ассистент",
+                description = "Персонализированный AI-помощник, который учитывает ваши уникальные особенности и предпочтения",
+                onClick = onPersonalAssistantSelected
             )
 
             Spacer(modifier = Modifier.height(24.dp))
