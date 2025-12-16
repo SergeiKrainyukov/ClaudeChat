@@ -6,6 +6,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Create
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -13,6 +15,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.claudechat.model.UserProfile
 import com.example.claudechat.viewmodel.UserProfileViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private enum class SaveStatus {
+    IDLE, SAVING, SAVED
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,9 +45,47 @@ fun UserProfileSettingsScreen(
     var medicalInfo by remember { mutableStateOf("") }
     var timezone by remember { mutableStateOf("") }
 
+    // Для автосохранения с задержкой
+    val coroutineScope = rememberCoroutineScope()
+    var saveJob by remember { mutableStateOf<Job?>(null) }
+    var isInitialLoad by remember { mutableStateOf(true) }
+    var lastSaveTime by remember { mutableStateOf(0L) }
+
+    // Определяем статус сохранения
+    val saveStatus = when {
+        isLoading -> SaveStatus.SAVING
+        saveSuccess && (System.currentTimeMillis() - lastSaveTime) < 3000 -> SaveStatus.SAVED
+        else -> SaveStatus.IDLE
+    }
+
+    // Функция автосохранения с задержкой 1 секунда
+    fun autoSave() {
+        if (isInitialLoad) return
+
+        saveJob?.cancel()
+        saveJob = coroutineScope.launch {
+            delay(1000) // Задержка 1 секунда перед сохранением
+            val profile = UserProfile(
+                name = name.takeIf { it.isNotBlank() },
+                age = age.toIntOrNull(),
+                occupation = occupation.takeIf { it.isNotBlank() },
+                hobbies = hobbiesText.split(",").map { it.trim() }.filter { it.isNotBlank() },
+                habits = habitsText.split(",").map { it.trim() }.filter { it.isNotBlank() },
+                goals = goalsText.split(";").map { it.trim() }.filter { it.isNotBlank() },
+                languageLevel = languageLevel.takeIf { it.isNotBlank() },
+                dietaryRestrictions = dietaryRestrictionsText.split(",").map { it.trim() }.filter { it.isNotBlank() },
+                medicalInfo = medicalInfo.takeIf { it.isNotBlank() },
+                timezone = timezone.takeIf { it.isNotBlank() }
+            )
+            viewModel.saveProfile(profile)
+            lastSaveTime = System.currentTimeMillis()
+        }
+    }
+
     // Загружаем текущий профиль в поля
     LaunchedEffect(currentProfile) {
         currentProfile?.let { profile ->
+            isInitialLoad = true
             name = profile.name ?: ""
             age = profile.age?.toString() ?: ""
             occupation = profile.occupation ?: ""
@@ -49,6 +96,9 @@ fun UserProfileSettingsScreen(
             dietaryRestrictionsText = profile.dietaryRestrictions.joinToString(", ")
             medicalInfo = profile.medicalInfo ?: ""
             timezone = profile.timezone ?: ""
+            // Небольшая задержка перед включением автосохранения
+            delay(500)
+            isInitialLoad = false
         }
     }
 
@@ -95,12 +145,75 @@ fun UserProfileSettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Эта информация будет использоваться для персонализации ответов вашего личного ассистента",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
+            Column(modifier = Modifier.padding(bottom = 16.dp)) {
+                Text(
+                    text = "Эта информация будет использоваться для персонализации ответов вашего личного ассистента",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Индикатор автосохранения - всегда виден
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = when (saveStatus) {
+                        SaveStatus.SAVING -> MaterialTheme.colorScheme.primaryContainer
+                        SaveStatus.SAVED -> MaterialTheme.colorScheme.tertiaryContainer
+                        SaveStatus.IDLE -> MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        when (saveStatus) {
+                            SaveStatus.SAVING -> {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Сохранение...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            SaveStatus.SAVED -> {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Все изменения сохранены",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
+                            SaveStatus.IDLE -> {
+                                Icon(
+                                    imageVector = Icons.Default.Create,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Автосохранение включено",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             // Основная информация
             Text(
@@ -111,7 +224,10 @@ fun UserProfileSettingsScreen(
 
             OutlinedTextField(
                 value = name,
-                onValueChange = { name = it },
+                onValueChange = {
+                    name = it
+                    autoSave()
+                },
                 label = { Text("Имя") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -121,7 +237,10 @@ fun UserProfileSettingsScreen(
 
             OutlinedTextField(
                 value = age,
-                onValueChange = { age = it },
+                onValueChange = {
+                    age = it
+                    autoSave()
+                },
                 label = { Text("Возраст") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -131,7 +250,10 @@ fun UserProfileSettingsScreen(
 
             OutlinedTextField(
                 value = occupation,
-                onValueChange = { occupation = it },
+                onValueChange = {
+                    occupation = it
+                    autoSave()
+                },
                 label = { Text("Профессия/Род деятельности") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -148,7 +270,10 @@ fun UserProfileSettingsScreen(
 
             OutlinedTextField(
                 value = hobbiesText,
-                onValueChange = { hobbiesText = it },
+                onValueChange = {
+                    hobbiesText = it
+                    autoSave()
+                },
                 label = { Text("Хобби (через запятую)") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -158,7 +283,10 @@ fun UserProfileSettingsScreen(
 
             OutlinedTextField(
                 value = habitsText,
-                onValueChange = { habitsText = it },
+                onValueChange = {
+                    habitsText = it
+                    autoSave()
+                },
                 label = { Text("Привычки (через запятую)") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -168,7 +296,10 @@ fun UserProfileSettingsScreen(
 
             OutlinedTextField(
                 value = goalsText,
-                onValueChange = { goalsText = it },
+                onValueChange = {
+                    goalsText = it
+                    autoSave()
+                },
                 label = { Text("Цели (через точку с запятой)") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -185,7 +316,10 @@ fun UserProfileSettingsScreen(
 
             OutlinedTextField(
                 value = languageLevel,
-                onValueChange = { languageLevel = it },
+                onValueChange = {
+                    languageLevel = it
+                    autoSave()
+                },
                 label = { Text("Уровень владения языками") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -195,7 +329,10 @@ fun UserProfileSettingsScreen(
 
             OutlinedTextField(
                 value = dietaryRestrictionsText,
-                onValueChange = { dietaryRestrictionsText = it },
+                onValueChange = {
+                    dietaryRestrictionsText = it
+                    autoSave()
+                },
                 label = { Text("Пищевые ограничения (через запятую)") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -205,7 +342,10 @@ fun UserProfileSettingsScreen(
 
             OutlinedTextField(
                 value = medicalInfo,
-                onValueChange = { medicalInfo = it },
+                onValueChange = {
+                    medicalInfo = it
+                    autoSave()
+                },
                 label = { Text("Медицинская информация") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -215,54 +355,16 @@ fun UserProfileSettingsScreen(
 
             OutlinedTextField(
                 value = timezone,
-                onValueChange = { timezone = it },
+                onValueChange = {
+                    timezone = it
+                    autoSave()
+                },
                 label = { Text("Часовой пояс") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 24.dp),
                 singleLine = true
             )
-
-            // Кнопка сохранения
-            Button(
-                onClick = {
-                    val profile = UserProfile(
-                        name = name.takeIf { it.isNotBlank() },
-                        age = age.toIntOrNull(),
-                        occupation = occupation.takeIf { it.isNotBlank() },
-                        hobbies = hobbiesText.split(",").map { it.trim() }.filter { it.isNotBlank() },
-                        habits = habitsText.split(",").map { it.trim() }.filter { it.isNotBlank() },
-                        goals = goalsText.split(";").map { it.trim() }.filter { it.isNotBlank() },
-                        languageLevel = languageLevel.takeIf { it.isNotBlank() },
-                        dietaryRestrictions = dietaryRestrictionsText.split(",").map { it.trim() }.filter { it.isNotBlank() },
-                        medicalInfo = medicalInfo.takeIf { it.isNotBlank() },
-                        timezone = timezone.takeIf { it.isNotBlank() }
-                    )
-                    viewModel.saveProfile(profile)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                enabled = !isLoading
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("Сохранить")
-                }
-            }
-
-            if (saveSuccess) {
-                Text(
-                    text = "Профиль успешно сохранен!",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 16.dp)
-                )
-            }
         }
     }
 }

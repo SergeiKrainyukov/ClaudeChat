@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.asLiveData
 import com.example.claudechat.model.Message
 import com.example.claudechat.model.UserProfile
 import com.example.claudechat.repository.ChatRepository
@@ -28,6 +29,16 @@ class PersonalAssistantViewModel(application: Application) : AndroidViewModel(ap
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> = _error
 
+    // Состояние для распознавания речи
+    private val _isListening = MutableLiveData(false)
+    val isListening: LiveData<Boolean> = _isListening
+
+    private val _speechRecognitionError = MutableLiveData<String?>()
+    val speechRecognitionError: LiveData<String?> = _speechRecognitionError
+
+    // Автоматически наблюдаемый профиль пользователя
+    val userProfile: LiveData<UserProfile?> = profileRepository.getUserProfile().asLiveData()
+
     private var currentUserProfile: UserProfile? = null
 
     init {
@@ -35,6 +46,23 @@ class PersonalAssistantViewModel(application: Application) : AndroidViewModel(ap
         viewModelScope.launch {
             currentUserProfile = profileRepository.getUserProfileOnce()
             updateSystemPromptWithProfile()
+        }
+
+        // Автоматически отслеживаем изменения профиля
+        observeProfileChanges()
+    }
+
+    /**
+     * Отслеживает изменения профиля и автоматически обновляет system prompt
+     */
+    private fun observeProfileChanges() {
+        viewModelScope.launch {
+            profileRepository.getUserProfile().collect { profile ->
+                if (profile != currentUserProfile) {
+                    currentUserProfile = profile
+                    updateSystemPromptWithProfile()
+                }
+            }
         }
     }
 
@@ -113,20 +141,13 @@ class PersonalAssistantViewModel(application: Application) : AndroidViewModel(ap
 
     /**
      * Перезагружает профиль пользователя и обновляет system prompt
+     * (Оставлено для совместимости, но теперь профиль обновляется автоматически)
      */
+    @Deprecated("Profile updates automatically now", ReplaceWith(""))
     fun reloadUserProfile() {
         viewModelScope.launch {
             currentUserProfile = profileRepository.getUserProfileOnce()
             updateSystemPromptWithProfile()
-
-            // Информируем пользователя об обновлении профиля
-            if (currentUserProfile != null) {
-                val infoMessage = Message(
-                    text = "Ваш профиль обновлен. Теперь я буду учитывать новую информацию о вас при формировании ответов.",
-                    isUser = false
-                )
-                addMessage(infoMessage)
-            }
         }
     }
 
@@ -134,4 +155,37 @@ class PersonalAssistantViewModel(application: Application) : AndroidViewModel(ap
      * Получает текущий профиль пользователя
      */
     fun getCurrentProfile(): UserProfile? = currentUserProfile
+
+    /**
+     * Обновляет состояние прослушивания речи
+     */
+    fun setListeningState(isListening: Boolean) {
+        _isListening.value = isListening
+    }
+
+    /**
+     * Обрабатывает результат распознавания речи
+     */
+    fun onSpeechRecognized(text: String) {
+        _isListening.value = false
+        _speechRecognitionError.value = null
+
+        // Отправляем распознанный текст как сообщение
+        sendMessage(text)
+    }
+
+    /**
+     * Обрабатывает ошибку распознавания речи
+     */
+    fun onSpeechRecognitionError(errorMessage: String) {
+        _isListening.value = false
+        _speechRecognitionError.value = errorMessage
+    }
+
+    /**
+     * Очищает ошибку распознавания речи
+     */
+    fun clearSpeechRecognitionError() {
+        _speechRecognitionError.value = null
+    }
 }
